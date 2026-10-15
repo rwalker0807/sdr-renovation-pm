@@ -77,6 +77,12 @@ npm run dev -- --mode demo  # same app on in-browser sample data
 - **Azure Static Web Apps** works the same way if you'd rather keep it in the Microsoft 365 tenant.
 - `npm run build:demo` makes one self-contained `dist-demo/index.html` running on sample data, useful for showing people.
 
+## Getting data in and out
+
+- **Export:** every table has a **⤓ Excel** button (exports the rows on screen). Budget has its own export, and the Dashboard has **⤓ Project workbook** (every tracker for the job in one file).
+- **Import:** drop files in `SDR Ops\Renovation PM App\_import`. The scheduled task **Weekly tracker import** (Mondays 6:55 AM ET, needs Ryan's computer on) loads them using the rules in `_import\IMPORT-PROCEDURE.md`, moves them to `_import\processed\<date>\` and writes an import summary. Ask Claude to "run the tracker import" any time to do it on demand.
+- **Who owns what:** the website owns progress, buyout, subcontracts, scope gaps, specs and scopes (edit them on the site). QuickBooks owns cost and bills; Outlook (Paige's email sweep) owns change orders and open items. Imports never overwrite website-owned data and never delete rows.
+
 ## Project layout
 
 ```
