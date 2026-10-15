@@ -1,5 +1,7 @@
 # SDR Renovation PM
 
+**Live app:** https://rwalker0807.github.io/sdr-renovation-pm/ (sign in with an @sdandr.com email)
+
 A hosted, live-updating tracker for every SDR renovation project: budget, cost, invoices, onsite progress, scope gaps, buyout, subcontracts, material buys, specs and scopes. One database serves all projects; switch between them from the sidebar.
 
 ## How it's built
@@ -56,7 +58,7 @@ npm run dev          # opens http://localhost:5173 in demo mode
 - `.env.production` holds the project URL and the *publishable* key. That key is public by design; the security comes from the row-level policies. Never commit the secret / service_role key.
 
 ### Supabase settings to finish in the dashboard
-1. **Authentication → URL Configuration:** set **Site URL** to the hosted address, and add it plus `http://localhost:5173` under **Redirect URLs**. Sign-in links won't work until this is set.
+1. ✅ **Authentication → URL Configuration:** Site URL and Redirect URLs are set to the GitHub Pages address and `http://localhost:5173`.
 2. **Authentication → Emails → SMTP:** Supabase's built-in email sender only allows a few sign-in emails per hour. Before rolling out to the team, plug in SMTP (Microsoft 365, SendGrid, Resend, etc.).
 3. Optional: **Authentication → Sign In / Providers →** turn off "Allow new users to sign up" and invite people from **Users**, for a hard invite-only list.
 
@@ -70,7 +72,7 @@ npm run dev -- --mode demo  # same app on in-browser sample data
 
 ## Host it
 
-- **GitHub Pages (set up already):** `.github/workflows/deploy.yml` builds and publishes on every push to `main`. One-time: repo **Settings → Pages → Source: GitHub Actions**. Pages on a *private* repo needs a paid GitHub plan (Team/Pro).
+- **GitHub Pages (live):** `.github/workflows/deploy.yml` builds and publishes on every push to `main`, usually in under a minute. Repo: https://github.com/rwalker0807/sdr-renovation-pm
 - **Vercel or Netlify (free, works with private repos):** import the GitHub repo. Build command `npm run build`, output folder `dist`. No environment variables needed since `.env.production` is committed.
 - **Azure Static Web Apps** works the same way if you'd rather keep it in the Microsoft 365 tenant.
 - `npm run build:demo` makes one self-contained `dist-demo/index.html` running on sample data, useful for showing people.
