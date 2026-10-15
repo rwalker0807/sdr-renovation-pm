@@ -6,6 +6,7 @@ import { date, money, moneyShort, pct } from '../lib/format';
 import { DataTable } from '../components/DataTable';
 import { RecordDrawer } from '../components/RecordDrawer';
 import { Kpi, Meter, PageHead, Pill } from '../components/ui';
+import { exportBudget, exportProject } from '../lib/exporter';
 
 // ---------- drawer helper ----------
 type DrawerState = { table: TableName; row?: Row | null; defaults?: Partial<Row> } | null;
@@ -58,6 +59,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
     <>
       <PageHead title={project ? project.name : 'Dashboard'}>
         {project && <span className="muted small">{project.code} · {project.address} · <Pill value={project.status} /></span>}
+        <button onClick={() => exportProject(project, data, byId)} title="Every tracker for this project in one Excel workbook">⤓ Project workbook</button>
       </PageHead>
 
       <div className="kpis">
@@ -107,7 +109,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
 
 // ---------- budget ----------
 export function BudgetView() {
-  const { data, recent } = useStore();
+  const { data, recent, byId, projectId } = useStore();
   const [drawer, open] = useDrawer();
   const [sel, setSel] = useState<string | null>(null);
   const roll = useMemo(() => budgetRollup(data), [data]);
@@ -122,6 +124,7 @@ export function BudgetView() {
   return (
     <>
       <PageHead title="Budget & cost">
+        <button onClick={() => exportBudget(byId('projects', projectId), data)}>⤓ Excel</button>
         <button onClick={() => open('change_orders')}>+ Change order</button>
         <button className="primary" onClick={() => open('budget_lines')}>+ Budget line</button>
       </PageHead>

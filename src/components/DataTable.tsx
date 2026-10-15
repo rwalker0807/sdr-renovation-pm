@@ -3,6 +3,7 @@ import { ENTITIES, refLabel, type Field, type Row, type TableName } from '../lib
 import { useStore } from '../lib/store';
 import { date, label, money, pct } from '../lib/format';
 import { Pill } from './ui';
+import { exportTable } from '../lib/exporter';
 
 export function useCell() {
   const { byId } = useStore();
@@ -26,7 +27,7 @@ export function useCell() {
 /** Sortable, searchable, status-filterable table with money totals. */
 export function DataTable({ table, rows, onOpen }: { table: TableName; rows?: Row[]; onOpen: (r: Row) => void }) {
   const ent = ENTITIES[table];
-  const { data, recent, byId } = useStore();
+  const { data, recent, byId, projectId } = useStore();
   const cell = useCell();
   const src = rows ?? data[table];
   const cols = ent.fields.filter((f) => f.table !== false);
@@ -71,6 +72,10 @@ export function DataTable({ table, rows, onOpen }: { table: TableName; rows?: Ro
           </select>
         )}
         <span className="muted small">{view.length} of {src.length}</span>
+        <span style={{ flex: 1 }} />
+        <button onClick={() => exportTable(byId('projects', projectId), table, view, byId)} title="Download the rows shown as an Excel file">
+          ⤓ Excel
+        </button>
       </div>
       <div className="table-scroll">
         <table>
