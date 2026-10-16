@@ -4,12 +4,12 @@
 export type TableName =
   | 'projects' | 'vendors' | 'budget_lines' | 'buyout_packages' | 'commitments'
   | 'change_orders' | 'material_buys' | 'invoices' | 'progress' | 'scope_gaps'
-  | 'specs' | 'scopes' | 'project_vendors';
+  | 'specs' | 'scopes' | 'project_vendors' | 'sdr_people';
 
 export type Row = { id: string; [k: string]: any };
 
 export type FieldType =
-  | 'text' | 'textarea' | 'number' | 'money' | 'percent' | 'date' | 'select' | 'ref' | 'bool' | 'url' | 'email';
+  | 'text' | 'textarea' | 'number' | 'money' | 'percent' | 'date' | 'select' | 'ref' | 'bool' | 'url' | 'email' | 'phone';
 
 export interface Field {
   key: string;
@@ -246,6 +246,22 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'exclusions', label: 'Exclusions', type: 'textarea' },
       { key: 'clarifications', label: 'Clarifications', type: 'textarea', table: false },
       { key: 'doc_url', label: 'Document', type: 'url', table: false },
+    ],
+  },
+  sdr_people: {
+    table: 'sdr_people', label: 'SDR Directory', singular: 'Person', projectScoped: false,
+    filters: [{ key: 'department', label: 'departments' }, { key: 'location', label: 'offices' }],
+    fields: [
+      { key: 'name', label: 'Name', type: 'text', required: true },
+      { key: 'title', label: 'Title', type: 'text' },
+      { key: 'department', label: 'Department', type: 'text' },
+      { key: 'email', label: 'Email', type: 'email' },
+      { key: 'mobile', label: 'Mobile', type: 'phone' },
+      { key: 'office_phone', label: 'Office', type: 'phone' },
+      { key: 'location', label: 'Office location', type: 'text' },
+      { key: 'kind', label: 'Type', type: 'select', options: ['person', 'shared'], optionLabels: { person: 'Person', shared: 'Shared mailbox' }, table: false },
+      { key: 'active', label: 'Active', type: 'bool', table: false },
+      { key: 'notes', label: 'Notes', type: 'textarea', table: false },
     ],
   },
   project_vendors: {

@@ -18,6 +18,7 @@ export function useCell() {
       case 'ref': return refLabel(f.ref!, byId(f.ref!, v));
       case 'bool': return v ? '✓' : <span className="muted">—</span>;
       case 'url': return v ? <a href={v} target="_blank" rel="noreferrer">open</a> : '';
+      case 'phone': return v ? <a href={`tel:${String(v).replace(/[^\d+]/g, '')}`} onClick={(e) => e.stopPropagation()}>{v}</a> : '';
       case 'email': return v ? <a href={`mailto:${v}`} onClick={(e) => e.stopPropagation()} title={`Email ${v}`}>{v}</a> : '';
       case 'textarea': return <span className="clip">{v}</span>;
       default: return v;

@@ -310,3 +310,14 @@ button.small { padding: 3px 8px; font-size: 12px; }
 .tcard-client { margin-top: 4px; color: var(--text); opacity: .85; }
 
 .att li.muted { display: block; }
+
+/* SDR directory */
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.person { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; }
+.person:hover { border-color: var(--muted); }
+.person .avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.person.shared .avatar { background: var(--surface-2); color: var(--muted); }
+.person-name { font-weight: 600; }
+.person-body { min-width: 0; }
+.person-links { display: grid; gap: 2px; margin-top: 6px; }
+.person-links a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

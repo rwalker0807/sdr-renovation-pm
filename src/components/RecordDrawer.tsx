@@ -79,7 +79,7 @@ export function RecordDrawer({ table, row, defaults, onClose }:
               case 'number': case 'money': case 'percent':
                 input = <input type="number" step="any" inputMode="decimal" value={v ?? ''} onChange={(e) => set(f.key, e.target.value === '' ? null : Number(e.target.value))} />; break;
               default:
-                input = <input type={f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : 'text'} value={v ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
+                input = <input type={f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : f.type === 'phone' ? 'tel' : 'text'} value={v ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
             }
             return (
               <div key={f.key} style={{ display: 'contents' }}>

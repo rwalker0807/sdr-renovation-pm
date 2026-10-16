@@ -7,6 +7,7 @@ import { TrelloBoard } from './views/TrelloBoard';
 import { RecordDrawer } from './components/RecordDrawer';
 import { ProjectPicker } from './components/ProjectPicker';
 import { ProjectVendorsView } from './views/ProjectVendors';
+import { DirectoryView } from './views/Directory';
 
 // Sidebar inside a project tab; `types` limits an item to some job types (default: all)
 const NAV: { key: string; label: string; group: string; types?: JobType[] }[] = [
@@ -25,13 +26,14 @@ const NAV: { key: string; label: string; group: string; types?: JobType[] }[] = 
 ];
 
 // Routes:  #/  (home) · #/crew · #/vendors · #/p/<job code>/<view>
-type Route = { page: 'home' | 'crew' | 'vendors' | 'trello' } | { page: 'project'; code: string; view: string };
+type Route = { page: 'home' | 'crew' | 'vendors' | 'trello' | 'directory' } | { page: 'project'; code: string; view: string };
 function parseHash(): Route {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   if (parts[0] === 'p' && parts[1]) return { page: 'project', code: parts[1], view: parts[2] || 'dashboard' };
   if (parts[0] === 'crew') return { page: 'crew' };
   if (parts[0] === 'trello') return { page: 'trello' };
   if (parts[0] === 'vendors') return { page: 'vendors' };
+  if (parts[0] === 'directory') return { page: 'directory' };
   return { page: 'home' };
 }
 const projectHref = (p: Row, view = 'dashboard') => `#/p/${encodeURIComponent(p.code || p.id)}/${view}`;
@@ -71,6 +73,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
   else if (route.page === 'crew') body = <CrewSchedule />;
   else if (route.page === 'trello') body = <TrelloBoard />;
   else if (route.page === 'vendors') body = <VendorsView />;
+  else if (route.page === 'directory') body = <DirectoryView />;
   else if (!project) body = <div className="panel pad">That project isn’t in the tracker. <a href="#/">Back to all projects</a></div>;
   else switch (pview) {
     case 'dashboard': body = <Dashboard go={(v) => { location.hash = projectHref(project, v); }} />; break;
@@ -94,6 +97,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
           <a href="#/trello" className={route.page === 'trello' ? 'on' : ''}>Raleigh Board</a>
           <a href="#/crew" className={route.page === 'crew' ? 'on' : ''}>Crew Schedule</a>
           <a href="#/vendors" className={route.page === 'vendors' ? 'on' : ''}>Vendors</a>
+          <a href="#/directory" className={route.page === 'directory' ? 'on' : ''}>Directory</a>
         </nav>
         <div className="top-right">
           <span className={`live ${live ? 'on' : ''} ${pulse ? 'pulse' : ''}`} title={lastEvent ? `Last change: ${lastEvent.label} ${new Date(lastEvent.at).toLocaleTimeString()}` : ''}>
