@@ -376,3 +376,10 @@ button.small { padding: 3px 8px; font-size: 12px; }
 }
 
 .tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
+
+/* Encircle latest note */
+.encircle-note .enote-meta { margin-bottom: 6px; }
+.encircle-note .enote-when { color: var(--text); }
+.encircle-note .enote-title { font-weight: 600; margin-bottom: 4px; }
+.encircle-note .enote-body { margin: 0; white-space: pre-wrap; line-height: 1.5; }
+.encircle-note .enote-body.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }

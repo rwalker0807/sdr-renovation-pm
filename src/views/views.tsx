@@ -9,6 +9,7 @@ import { Kpi, Meter, PageHead, Pill } from '../components/ui';
 import { exportBudget, exportProject } from '../lib/exporter';
 import { TrelloForProject } from './TrelloBoard';
 import { ProjectVendorsPanel } from './ProjectVendors';
+import { EncircleNote } from '../components/EncircleNote';
 import { JobTypeTag } from '../components/ui';
 
 // ---------- drawer helper ----------
@@ -155,6 +156,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
       {jt !== 'renovation' && project ? (
         <>
           <JobKpis project={project} invoiced={t.invoiced} paid={t.paid} committed={t.committed} vendorTotal={data.project_vendors.reduce((a, r) => a + (Number(r.amount) || 0), 0)} />
+          <EncircleNote project={project} />
           <TrelloForProject code={project.code} />
           <div className="grid2">
             <JobDetails project={project} onEdit={() => open('projects', project)} />
@@ -184,6 +186,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
              sub={`${money(openGaps.reduce((a, g) => a + (Number(g.est_cost) || 0), 0))} exposure`} />
       </div>
 
+      <EncircleNote project={project} />
       <TrelloForProject code={project?.code} />
       <div className="grid2">
         <section className="panel">
