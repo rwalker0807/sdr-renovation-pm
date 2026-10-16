@@ -350,8 +350,11 @@ button.small { padding: 3px 8px; font-size: 12px; }
 .props-check li.done { color: var(--muted); text-decoration: line-through; }
 .props-detail-foot { border-top: 1px solid var(--line); padding-top: 8px; }
 .leaflet-container { font: inherit; }
-.marker-cluster-small, .marker-cluster-medium, .marker-cluster-large { background-color: rgba(217,130,43,.35); }
-.marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div { background-color: rgba(217,130,43,.9); color: #fff; font-weight: 700; }
+.pcluster { background: none; border: 0; }
+.pcluster-ring { border-radius: 50%; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.45); transition: transform .12s; }
+.pcluster-ring:hover { transform: scale(1.08); }
+.pcluster-ring span { width: calc(100% - 10px); height: calc(100% - 10px); border-radius: 50%; display: grid; place-items: center;
+  background: #1c2025; color: #fff; font-weight: 700; font-size: 13px; border: 2px solid #fff; }
 @media (max-width: 760px) {
   .props-page { grid-template-columns: 1fr; grid-template-rows: 45% 55%; }
   .props-side { order: 2; border-right: 0; border-top: 1px solid var(--line); }

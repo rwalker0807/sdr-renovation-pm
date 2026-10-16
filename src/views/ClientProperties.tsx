@@ -190,7 +190,25 @@ function PropertyMap({ props, selected, onSelect }: { props: Prop[]; selected: s
     (dark() ? darkMap : street).addTo(m);
     L.control.layers(dark() ? { Map: darkMap, Street: street, Satellite: satellite } : { Map: street, Satellite: satellite },
       undefined, { position: 'topright' }).addTo(m);
-    group.current = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 45 });
+    group.current = L.markerClusterGroup({
+      showCoverageOnHover: false, maxClusterRadius: 45, spiderfyOnMaxZoom: true,
+      // round badge with the count; the outer ring is split by the clients' pin colors
+      iconCreateFunction: (cluster) => {
+        const kids = cluster.getAllChildMarkers();
+        const n = kids.length;
+        const tally = new Map<string, number>();
+        kids.forEach((k) => { const c = (k.options as any).pinColor ?? '#8590a2'; tally.set(c, (tally.get(c) ?? 0) + 1); });
+        let at = 0;
+        const stops = [...tally.entries()].sort((a, b) => b[1] - a[1]).map(([c, k]) => {
+          const from = (at / n) * 360; at += k; return `${c} ${from}deg ${(at / n) * 360}deg`;
+        }).join(', ');
+        const size = n < 10 ? 34 : n < 50 ? 42 : 50;
+        return L.divIcon({
+          className: 'pcluster', iconSize: [size, size],
+          html: `<div class="pcluster-ring" style="width:${size}px;height:${size}px;background:conic-gradient(${stops})"><span>${n}</span></div>`,
+        });
+      },
+    });
     m.addLayer(group.current);
     map.current = m;
     const ro = new ResizeObserver(() => m.invalidateSize());
@@ -210,7 +228,7 @@ function PropertyMap({ props, selected, onSelect }: { props: Prop[]; selected: s
         className: 'tpin', iconSize: [26, 34], iconAnchor: [13, 33], popupAnchor: [0, -30],
         html: `<svg viewBox="0 0 26 34" width="26" height="34"><path d="M13 33s11-11.4 11-19.5A11 11 0 0 0 2 13.5C2 21.6 13 33 13 33z" fill="${pinColor(p)}" stroke="rgba(0,0,0,.45)" stroke-width="1.2"/><circle cx="13" cy="13.5" r="4.2" fill="#fff"/></svg>`,
       });
-      const mk = L.marker([p.lat, p.lng], { icon, title: p.name })
+      const mk = L.marker([p.lat, p.lng], { icon, title: p.name, pinColor: pinColor(p) } as L.MarkerOptions)
         .bindTooltip(esc(p.name), { direction: 'top', offset: [0, -30] })
         .on('click', () => onSelect(p.id));
       markers.current.set(p.id, mk);
