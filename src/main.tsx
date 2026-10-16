@@ -52,7 +52,7 @@ function SupabaseRoot() {
           {sent ? <p>Check <b>{email}</b> for a sign-in link.</p> : (
             <>
               <label className="field"><span>Work email</span>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@sdandr.com" />
+                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
               </label>
               <button className="primary" type="submit">Email me a sign-in link</button>
             </>

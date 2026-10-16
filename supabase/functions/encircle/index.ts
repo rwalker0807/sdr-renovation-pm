@@ -3,7 +3,7 @@
 // Never creates or changes anything in Encircle.
 //
 // Secret (Supabase > Edge Functions > Secrets): ENCIRCLE_API_TOKEN — created in Encircle account settings.
-// Called by the site with a signed-in @sdandr.com user's token:  { action: 'latest_notes', claim_ids: ['4911809'] }
+// Called by the site with a signed-in user's token (allowed domains: public.allowed_email):  { action: 'latest_notes', claim_ids: ['4911809'] }
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const TOKEN = Deno.env.get('ENCIRCLE_API_TOKEN') ?? '';
@@ -22,7 +22,10 @@ async function sdrUser(req: Request) {
   const jwt = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!jwt) return null;
   const { data } = await admin.auth.getUser(jwt);
-  return (data.user?.email ?? '').toLowerCase().endsWith('@sdandr.com') ? data.user : null;
+  if (!data.user?.email) return null;
+  // allowed sign-in domains live in one place: public.allowed_email() (migration 0014)
+  const { data: ok } = await admin.rpc('allowed_email', { e: data.user.email });
+  return ok === true ? data.user : null;
 }
 
 class EncircleAuthError extends Error {}
@@ -168,7 +171,7 @@ async function latestFor(claimId: string) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-  if (!(await sdrUser(req))) return json({ error: 'Sign in with an @sdandr.com account.' }, 401);
+  if (!(await sdrUser(req))) return json({ error: 'Sign in with an @sdandr.com or @venture-gc.com account.' }, 401);
   if (!TOKEN) return json({ error: 'not_configured', message: 'Encircle API token not set (Supabase secret ENCIRCLE_API_TOKEN).' }, 200);
 
   let p: any = {};

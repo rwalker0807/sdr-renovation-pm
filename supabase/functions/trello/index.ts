@@ -2,7 +2,7 @@
 //
 //  Trello -> tracker : Trello calls this function (webhook) on every board change; we re-read the
 //                      card from Trello and upsert it into trello_cards (realtime pushes it to the site).
-//  tracker -> Trello : the site calls this function with a signed-in @sdandr.com user's token to move a
+//  tracker -> Trello : the site calls this function with a signed-in user's token (allowed domains: public.allowed_email) to move a
 //                      card, change labels or set the due date; we make the change in Trello, then upsert.
 //
 // Secrets (Supabase > Edge Functions > Secrets): TRELLO_KEY, TRELLO_TOKEN, TRELLO_SECRET
@@ -150,8 +150,10 @@ async function sdrUser(req: Request) {
   const jwt = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!jwt) return null;
   const { data } = await admin.auth.getUser(jwt);
-  const email = data.user?.email?.toLowerCase() ?? '';
-  return email.endsWith('@sdandr.com') ? data.user : null;
+  if (!data.user?.email) return null;
+  // allowed sign-in domains live in one place: public.allowed_email() (migration 0014)
+  const { data: ok } = await admin.rpc('allowed_email', { e: data.user.email });
+  return ok === true ? data.user : null;
 }
 
 async function cardOnBoard(id: string) {
@@ -199,7 +201,7 @@ Deno.serve(async (req) => {
 
   // ---- tracker -> Trello (signed-in SDR user)
   const user = await sdrUser(req);
-  if (!user) return json({ error: 'Sign in with an @sdandr.com account.' }, 401);
+  if (!user) return json({ error: 'Sign in with an @sdandr.com or @venture-gc.com account.' }, 401);
   let p: any = {};
   try { p = JSON.parse(body || '{}'); } catch { return json({ error: 'Bad JSON' }, 400); }
 

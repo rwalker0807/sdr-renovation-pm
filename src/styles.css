@@ -73,8 +73,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .brand-logo { height: 40px; width: auto; display: block; }
 .brand-mark-img { height: 32px; width: 32px; display: none; }
 .brand-name { font-weight: 600; font-size: 13px; color: var(--side-text); padding-left: 10px; border-left: 1px solid #3a424b; letter-spacing: .02em; }
-.login-brand { display: grid; justify-items: center; gap: 6px; margin-bottom: 8px; }
-.login-brand img { height: 64px; width: auto; }
+.login-brand { display: grid; justify-items: center; gap: 10px; margin: 6px 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.login-brand img { height: 104px; width: auto; max-width: 100%; object-fit: contain; }
 .login-app { font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
 .logo-on-dark { display: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .logo-on-dark { display: block; } :root:not([data-theme="light"]) .logo-on-light { display: none; } }
@@ -211,7 +211,7 @@ tr.flash td, td.flash, .card.flash { animation: flash 2.4s ease-out; }
 .field-inline input { width: auto; }
 
 .login { min-height: 100%; display: grid; place-items: center; padding: 16px; }
-.login form { width: min(380px, 100%); display: grid; gap: 12px; }
+.login form { width: min(400px, 100%); display: grid; gap: 12px; padding: 28px 26px; }
 
 @media (max-width: 900px) {
   .app.with-side { grid-template-columns: 1fr; }
