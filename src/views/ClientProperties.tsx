@@ -175,11 +175,16 @@ function PropertyMap({ props, selected, onSelect }: { props: Prop[]; selected: s
   useEffect(() => {
     if (!el.current || map.current) return;
     const m = L.map(el.current, { zoomControl: true, worldCopyJump: true }).setView([37.5, -84], 5);
-    const theme = dark() ? 'dark_all' : 'rastertiles/voyager';
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${theme}/{z}/{x}/{y}{r}.png`, {
-      maxZoom: 19, subdomains: 'abcd',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    }).addTo(m);
+    // Free tile sources that need no API key. Street map is darkened with a CSS filter in dark mode.
+    const street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, className: dark() ? 'tiles-dark' : '',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    });
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19, attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics',
+    });
+    street.addTo(m);
+    L.control.layers({ Map: street, Satellite: satellite }, undefined, { position: 'topright' }).addTo(m);
     group.current = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 45 });
     m.addLayer(group.current);
     map.current = m;

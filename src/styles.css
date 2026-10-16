@@ -360,3 +360,5 @@ button.small { padding: 3px 8px; font-size: 12px; }
 @media (max-width: 760px) {
   .props-detail { position: fixed; inset: auto 0 0 0; top: 64px; width: auto; border-radius: 14px 14px 0 0; }
 }
+
+.tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
