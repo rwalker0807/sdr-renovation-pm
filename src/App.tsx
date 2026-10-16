@@ -92,7 +92,11 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
   return (
     <div className="shell">
       <header className="topbar">
-        <a className="brand" href="#/"><span className="brand-mark">SDR</span><span className="brand-name">Renovation PM</span></a>
+        <a className="brand" href="#/" aria-label="Stone Development & Restoration — Renovation PM home">
+          <img className="brand-logo" src={`${import.meta.env.BASE_URL}brand/sdr-logo-white.png`} alt="Stone Development & Restoration" />
+          <img className="brand-mark-img" src={`${import.meta.env.BASE_URL}brand/sdr-mark-white.png`} alt="SDR" />
+          <span className="brand-name">Renovation PM</span>
+        </a>
         <nav className="tabs" aria-label="Projects">
           <a href="#/" className={route.page === 'home' ? 'on' : ''}>Home</a>
           <ProjectPicker projects={all.projects} current={project} onPick={openProject} onNew={() => setNewProject(true)} />

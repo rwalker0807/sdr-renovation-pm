@@ -44,7 +44,11 @@ function SupabaseRoot() {
           const { error } = await source.client.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
           if (error) setErr(error.message); else setSent(true);
         }}>
-          <div className="brand"><span className="brand-mark">SDR</span> Renovation PM</div>
+          <div className="login-brand">
+            <img className="logo-on-light" src={`${import.meta.env.BASE_URL}brand/sdr-logo-black.png`} alt="Stone Development & Restoration" />
+            <img className="logo-on-dark" src={`${import.meta.env.BASE_URL}brand/sdr-logo-white.png`} alt="Stone Development & Restoration" />
+            <div className="login-app">Renovation PM</div>
+          </div>
           {sent ? <p>Check <b>{email}</b> for a sign-in link.</p> : (
             <>
               <label className="field"><span>Work email</span>

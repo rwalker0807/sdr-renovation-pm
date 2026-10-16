@@ -70,7 +70,16 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
   background: var(--side); color: var(--side-text); padding: 0 16px; border-bottom: 1px solid #2b323a; }
 .brand { font-weight: 700; color: #fff; display: flex; gap: 8px; align-items: center; text-decoration: none; white-space: nowrap; }
 .login .brand { color: var(--text); margin-bottom: 4px; }
-.brand-mark { background: var(--accent); color: #fff; font-size: 11px; padding: 3px 6px; border-radius: 4px; letter-spacing: .05em; }
+.brand-logo { height: 40px; width: auto; display: block; }
+.brand-mark-img { height: 32px; width: 32px; display: none; }
+.brand-name { font-weight: 600; font-size: 13px; color: var(--side-text); padding-left: 10px; border-left: 1px solid #3a424b; letter-spacing: .02em; }
+.login-brand { display: grid; justify-items: center; gap: 6px; margin-bottom: 8px; }
+.login-brand img { height: 64px; width: auto; }
+.login-app { font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
+.logo-on-dark { display: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .logo-on-dark { display: block; } :root:not([data-theme="light"]) .logo-on-light { display: none; } }
+:root[data-theme="dark"] .logo-on-dark { display: block; }
+:root[data-theme="dark"] .logo-on-light { display: none; }
 .tabs { display: flex; align-items: stretch; gap: 2px; height: 100%; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: thin; }
 .tabs a { display: flex; align-items: center; gap: 6px; padding: 0 12px; color: var(--side-text); text-decoration: none; white-space: nowrap;
   border-bottom: 3px solid transparent; font-size: 13.5px; }
@@ -207,6 +216,8 @@ tr.flash td, td.flash, .card.flash { animation: flash 2.4s ease-out; }
 @media (max-width: 900px) {
   .app.with-side { grid-template-columns: 1fr; }
   .brand-name { display: none; }
+  .brand-logo { display: none; }
+  .brand-mark-img { display: block; }
   .top-right .link { display: none; }
   .side { position: fixed; z-index: 30; width: 260px; transform: translateX(-100%); transition: transform .2s; }
   .side.open { transform: none; }
