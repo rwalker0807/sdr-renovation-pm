@@ -12,8 +12,9 @@ export function encircleClaimId(p?: Row | null): string | null {
 
 type Photo = { url: string; filename: string | null; taken: string; type: string | null; labels: string[] };
 type Note = { claim_id: string; title: string | null; body: string | null; author: string | null; created_at: string | null; checked_at: string; error: string | null;
-  photos?: Photo[]; photos_total?: number; photo_day?: string | null };
-const PHOTO_KIND: Record<string, string> = { ClaimRoomPictureNotePicture: 'Room photo note', ClaimRoomAfterPicture: 'Room photo', ClaimSketchPictureNodePicture: 'Sketch photo', ClaimPictureDocument: 'Scanned document' };
+  photos?: Photo[]; photos_total?: number; photo_day?: string | null; note_scope?: 'claim' | 'room' | null; room?: string | null; photo_mode?: 'note' | 'day' | null };
+const PHOTO_KIND: Record<string, string> = { ClaimNotePicture: 'Note photo', ClaimRoomNotePicture: 'Room note photo', ClaimRoomPictureNotePicture: 'Room photo note',
+  ClaimRoomAfterPicture: 'Room photo', ClaimSketchPictureNodePicture: 'Sketch photo', ClaimPictureDocument: 'Scanned document' };
 const STALE_MS = 10 * 60 * 1000;
 
 function ago(iso: string) {
@@ -55,7 +56,8 @@ export function EncircleNote({ project }: { project?: Row | null }) {
       const { data } = await client.from('encircle_latest_note').select('*').eq('claim_id', claimId).maybeSingle();
       if (!alive) return;
       if (data) setNote(data);
-      if (!data || Date.now() - new Date(data.checked_at).getTime() > STALE_MS) refresh();
+      // re-check when stale, or when cached by the older version that only read general notes
+      if (!data || data.note_scope == null || Date.now() - new Date(data.checked_at).getTime() > STALE_MS) refresh();
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,13 +82,14 @@ export function EncircleNote({ project }: { project?: Row | null }) {
             <b className="enote-when">{ago(note.created_at)}</b> · {new Date(note.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
             {note.author ? <> · {note.author}</> : null}
           </div>
+          <div className="enote-where small">{note.note_scope === 'room' ? <>Room note · <b>{note.room ?? 'room'}</b></> : 'General claim note'}</div>
           {note.title && <div className="enote-title">{note.title}</div>}
           {note.body && <p className={`enote-body ${long && !open ? 'clamped' : ''}`}>{note.body}</p>}
           {long && <button className="link small" onClick={() => setOpen((o) => !o)}>{open ? 'Show less' : 'Show full note'}</button>}
           {!!note.photos?.length && (
             <div className="enote-photos">
               <div className="small muted">
-                Photos added to the claim that day ({note.photos_total ?? note.photos.length})
+                {note.photo_mode === 'note' ? 'Photos with this note' : 'Photos added to the claim that day'} ({note.photos_total ?? note.photos.length})
                 {(note.photos_total ?? 0) > note.photos.length && <> · showing the latest {note.photos.length} · <a href={project?.encircle_url} target="_blank" rel="noreferrer">see all in Encircle</a></>}
               </div>
               <div className="enote-grid">
@@ -102,7 +105,7 @@ export function EncircleNote({ project }: { project?: Row | null }) {
       ) : note?.error ? (
         <p className="muted small">{note.error} (claim {claimId}).</p>
       ) : state === 'loading' ? (
-        <p className="muted small">Checking Encircle…</p>
+        <p className="muted small">Checking Encircle… the first check of a large claim can take up to a minute.</p>
       ) : state === 'error' ? (
         <p className="small" style={{ color: 'var(--bad)' }}>{err}</p>
       ) : (
