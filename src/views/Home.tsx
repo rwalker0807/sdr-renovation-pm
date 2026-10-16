@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { makeCrewDb } from '../lib/crewDb';
 import { forProject, useStore } from '../lib/store';
 import { attentionItems, budgetRollup, buyoutSummary, overallProgress, totals } from '../lib/rollups';
 import { money, moneyShort, pct } from '../lib/format';
@@ -162,14 +163,15 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
 }
 
 export function CrewSchedule() {
-  return (
-    <>
-      <PageHead title="Crew schedule" />
-      <div className="panel pad">
-        <h2>Coming next</h2>
-        <p className="muted">This tab is reserved for the crew scheduler: crews and people by day across every job, drag to reassign,
-          and a look-ahead by phase. It will read jobs from this tracker and can line up with ClockShark hours.</p>
-      </div>
-    </>
-  );
+  const { source } = useStore();
+  const [ready, setReady] = useState(false);
+  // hand the scheduler (iframe) a shared database before it loads; demo mode falls back to this browser only
+  useEffect(() => {
+    const db = makeCrewDb(source);
+    (window as any).sdrCrewDb = db;
+    setReady(true);
+    return () => { db?.close(); delete (window as any).sdrCrewDb; };
+  }, [source]);
+  if (!ready) return null;
+  return <iframe className="crew-frame" title="Crew scheduler" src={`${import.meta.env.BASE_URL}crew-scheduler.html`} />;
 }

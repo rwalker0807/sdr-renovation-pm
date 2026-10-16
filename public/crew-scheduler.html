@@ -1,0 +1,3463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scheduler">
+<meta name="theme-color" content="#14171b">
+<title>Crew Scheduler</title>
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#14171b;
+    --panel:#1c2025;
+    --border:#2e343b;
+    --text:#e6e8eb;
+    --muted:#959ba3;
+    --accent:#4f8ff7;
+    --accent-light:rgba(79,143,247,.18);
+    --gray-bg:#262b31;
+    --gray-text:#6f767f;
+    --super:#a78bfa;
+    --super-light:rgba(167,139,250,.18);
+    --vehicle:#14b8a6;
+    --vehicle-light:rgba(20,184,166,.18);
+    --danger:#f0605c;
+    --today:#2a2416;
+    --green:#22b07d;
+    --green-light:rgba(34,176,125,.17);
+    --hold:#e0901a;
+    --hold-light:rgba(224,144,26,.17);
+    --overdue:#f0605c;
+    --overdue-light:rgba(240,96,92,.17);
+    --warn:#f2c94c;
+    --warn-light:rgba(242,201,76,.16);
+    --shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+  input, select, textarea{background-color:var(--panel);color:var(--text);}
+  ::placeholder{color:#6f767f;}
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    height:100vh;
+    overflow:hidden;
+  }
+  .app{
+    display:flex;
+    height:100vh;
+  }
+
+  /* Sidebar */
+  .sidebar{
+    width:260px;
+    background:var(--panel);
+    border-right:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    flex-shrink:0;
+  }
+  .sidebar-header{
+    padding:16px 16px 10px;
+    border-bottom:1px solid var(--border);
+  }
+  .sidebar-header h1{
+    font-size:16px;
+    margin:0 0 2px;
+  }
+  .sidebar-header p{
+    font-size:12px;
+    color:var(--muted);
+    margin:0;
+  }
+  .io-buttons{
+    display:flex;
+    gap:6px;
+    margin-top:10px;
+  }
+  .io-btn{
+    flex:1;
+    padding:6px 8px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    border-radius:6px;
+    font-size:11.5px;
+    font-weight:600;
+    color:var(--text);
+    cursor:pointer;
+  }
+  .io-btn:hover{background:var(--bg);}
+  .sidebar-hint{
+    font-size:11px;
+    color:var(--muted);
+    padding:8px 12px 0;
+    font-style:italic;
+  }
+  .roster{
+    flex:1;
+    overflow-y:auto;
+    padding:8px 12px 10px;
+    min-height:0;
+  }
+  .roster-group{
+    margin-bottom:14px;
+  }
+  .roster-group-title{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--muted);
+    padding:0 6px 6px;
+  }
+  .emp-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:7px 10px;
+    border-radius:8px;
+    margin-bottom:4px;
+    font-size:13.5px;
+    transition:background .15s, box-shadow .15s;
+    cursor:grab;
+  }
+  .emp-row:active{cursor:grabbing;}
+  .emp-row.dragging{opacity:.4;}
+  .emp-row.available:hover{
+    background:var(--bg);
+  }
+  .emp-row.busy{
+    background:var(--gray-bg);
+    color:var(--gray-text);
+    cursor:not-allowed;
+  }
+  .emp-name{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    overflow:hidden;
+  }
+  .grip{
+    color:var(--muted);
+    font-size:11px;
+    flex-shrink:0;
+    letter-spacing:-1px;
+  }
+  .dot{
+    width:8px;height:8px;border-radius:50%;
+    flex-shrink:0;
+  }
+  .dot.laborer{background:var(--accent);}
+  .dot.super{background:var(--super);}
+  .dot.vehicle{background:var(--vehicle);}
+  .busy .dot{background:var(--gray-text) !important;}
+  .emp-label{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    display:flex;
+    flex-direction:column;
+    line-height:1.25;
+  }
+  .emp-sub{
+    font-size:10.5px;
+    color:var(--muted);
+  }
+  .busy .emp-sub{color:var(--gray-text);}
+  .badge{
+    font-size:11px;
+    background:var(--super-light);
+    color:var(--super);
+    border-radius:10px;
+    padding:1px 7px;
+    font-weight:600;
+    flex-shrink:0;
+  }
+  .busy .badge{
+    background:var(--gray-bg);
+    color:var(--gray-text);
+  }
+  .badge-warning{
+    background:var(--warn-light) !important;
+    color:var(--warn) !important;
+  }
+  .del-emp{
+    background:none;border:none;color:var(--muted);
+    cursor:pointer;font-size:13px;padding:0 2px;visibility:hidden;
+  }
+  .emp-row:hover .del-emp{visibility:visible;}
+  .empty-note{
+    font-size:12px;
+    color:var(--muted);
+    padding:4px 6px;
+  }
+
+  .add-forms{
+    border-top:1px solid var(--border);
+    flex-shrink:0;
+  }
+  .add-block{
+    padding:10px 12px;
+    border-bottom:1px solid var(--border);
+  }
+  .add-block:last-child{border-bottom:none;}
+  .add-block-title{
+    font-size:11px;
+    font-weight:700;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:6px;
+  }
+  .add-block input, .add-block select{
+    width:100%;
+    padding:7px 9px;
+    margin-bottom:5px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13px;
+    font-family:inherit;
+    background:var(--bg);
+  }
+  .add-block button{
+    width:100%;
+    padding:7px;
+    background:var(--accent);
+    color:white;
+    border:none;
+    border-radius:6px;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .add-block button:hover{background:#3b7be6;}
+  .add-block.vehicle-block button{background:var(--vehicle);}
+  .add-block.vehicle-block button:hover{background:#0f9a8b;}
+
+  /* Main area */
+  .main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .tab-bar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 24px 0;
+    border-bottom:1px solid var(--border);
+    background:var(--panel);
+    flex-shrink:0;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .tab-buttons{display:flex;gap:4px;}
+  .tab-btn{
+    border:none;
+    background:none;
+    padding:10px 16px;
+    font-size:14px;
+    font-weight:600;
+    color:var(--muted);
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    margin-bottom:-1px;
+  }
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{
+    color:var(--accent);
+    border-bottom-color:var(--accent);
+  }
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px 14px;
+    padding-bottom:10px;
+    font-size:11.5px;
+    color:var(--muted);
+  }
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .legend i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+  .legend i.ongoing{background:var(--green);}
+  .legend i.upcoming{background:var(--accent);}
+  .legend i.completed{background:var(--gray-text);}
+  .legend i.onhold{background:var(--hold);}
+  .legend i.overdue{background:var(--overdue);}
+
+  .tab-content{
+    flex:1;
+    overflow:hidden;
+    display:flex;
+  }
+  .tab-pane{
+    flex:1;
+    display:flex;
+    overflow:hidden;
+    min-height:0;
+  }
+
+  /* Calendar tab */
+  .calendar-panel{
+    flex:1.4;
+    display:flex;
+    flex-direction:column;
+    padding:20px 24px;
+    overflow-y:auto;
+    min-height:0;
+  }
+  .cal-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .cal-header h2{
+    font-size:20px;
+    margin:0;
+  }
+  .cal-nav{
+    display:flex;
+    gap:6px;
+  }
+  .cal-nav button{
+    border:1px solid var(--border);
+    background:var(--panel);
+    border-radius:6px;
+    width:32px;height:32px;
+    font-size:15px;
+    cursor:pointer;
+    color:var(--text);
+  }
+  .cal-nav button:hover{background:var(--bg);}
+  .cal-nav .today-btn{
+    width:auto;
+    padding:0 12px;
+    font-size:12px;
+    font-weight:600;
+  }
+  .weekdays{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:6px;
+    margin-bottom:6px;
+  }
+  .weekdays div{
+    text-align:center;
+    font-size:11px;
+    font-weight:700;
+    color:var(--muted);
+    text-transform:uppercase;
+  }
+  .cal-grid{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:6px;
+    flex:1;
+  }
+  .day-cell{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:7px;
+    min-height:96px;
+    cursor:pointer;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+    transition:box-shadow .15s, border-color .15s;
+    overflow:hidden;
+  }
+  .day-cell:hover{
+    border-color:var(--accent);
+  }
+  .day-cell.selected{
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px var(--accent-light);
+  }
+  .day-cell.today{
+    background:var(--today);
+  }
+  .day-cell.other-month{
+    opacity:.35;
+  }
+  .day-num{
+    font-size:12.5px;
+    font-weight:600;
+    margin-bottom:2px;
+  }
+  .job-pill{
+    font-size:10px;
+    font-weight:600;
+    padding:2px 5px;
+    border-radius:4px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .job-pill.ongoing{background:var(--green-light);color:var(--green);}
+  .job-pill.upcoming{background:var(--accent-light);color:var(--accent);}
+  .job-pill.completed{background:var(--gray-bg);color:var(--gray-text);}
+  .job-pill.onhold{background:var(--hold-light);color:var(--hold);}
+  .job-pill.overdue{background:var(--overdue-light);color:var(--overdue);}
+  .job-pill-more{
+    font-size:10px;
+    color:var(--muted);
+    padding:0 5px;
+  }
+
+  /* Detail panel (calendar tab) */
+  .detail-panel{
+    width:400px;
+    flex-shrink:0;
+    background:var(--panel);
+    border-left:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    overflow-y:auto;
+    min-height:0;
+  }
+  .detail-header{
+    padding:18px 20px 14px;
+    border-bottom:1px solid var(--border);
+  }
+  .detail-header h3{
+    margin:0 0 2px;
+    font-size:17px;
+  }
+  .detail-header p{
+    margin:0;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .detail-body{
+    padding:16px 20px;
+    flex:1;
+  }
+  .add-job{
+    display:flex;
+    gap:6px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .add-job input[type="text"]{
+    flex:1;
+    min-width:100px;
+  }
+  .add-job input{
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13px;
+    font-family:inherit;
+  }
+  .add-job select{
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13px;
+    font-family:inherit;
+    background:var(--panel);
+    max-width:150px;
+  }
+  .add-job .num-input{width:70px;}
+  .add-job .dur-input{width:64px;}
+  .add-job button{
+    background:var(--accent);
+    color:white;
+    border:none;
+    border-radius:6px;
+    padding:8px 12px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    height:34px;
+    margin-top:16px;
+  }
+  .field-label{
+    font-size:10px;
+    color:var(--muted);
+    display:block;
+    margin-bottom:2px;
+  }
+
+  /* Shared job card/row styling (calendar + jobs tab) */
+  .job-card, .job-row{
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 14px;
+    margin-bottom:12px;
+    border-left:4px solid var(--border);
+    transition:background .12s, border-color .12s;
+  }
+  .job-card.ongoing, .job-row.ongoing{border-left-color:var(--green);}
+  .job-card.upcoming, .job-row.upcoming{border-left-color:var(--accent);}
+  .job-card.completed, .job-row.completed{border-left-color:var(--gray-text);}
+  .job-card.onhold, .job-row.onhold{border-left-color:var(--hold);}
+  .job-card.overdue, .job-row.overdue{border-left-color:var(--overdue);}
+  .job-card.drag-over, .job-row.drag-over{
+    background:var(--accent-light);
+    border-color:var(--accent);
+  }
+  .job-title-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .job-title-inputs{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    flex:1;
+    min-width:0;
+  }
+  .job-title-meta{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .job-num-input{
+    width:64px;
+    font-size:12px;
+    padding:6px 7px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-family:inherit;
+    color:var(--muted);
+  }
+  .job-name-input{
+    width:100%;
+    font-size:15px;
+    font-weight:600;
+    padding:7px 9px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-family:inherit;
+    color:var(--text);
+  }
+  .status-pill{
+    font-size:10.5px;
+    font-weight:700;
+    padding:3px 9px;
+    border-radius:10px;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    white-space:nowrap;
+    margin-top:6px;
+  }
+  .status-pill.ongoing{background:var(--green-light);color:var(--green);}
+  .status-pill.upcoming{background:var(--accent-light);color:var(--accent);}
+  .status-pill.completed{background:var(--gray-bg);color:var(--gray-text);}
+  .status-pill.onhold{background:var(--hold-light);color:var(--hold);}
+  .status-pill.overdue{background:var(--overdue-light);color:var(--overdue);}
+  .job-del{
+    background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;flex-shrink:0;
+    padding:6px 0;white-space:nowrap;
+  }
+  .job-del:hover{color:var(--danger);}
+  .job-action-btn{
+    border:none;
+    border-radius:6px;
+    padding:5px 10px;
+    font-size:11.5px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .job-action-btn.complete{
+    background:var(--green-light);
+    color:var(--green);
+  }
+  .job-action-btn.complete:hover{
+    background:var(--green);
+    color:white;
+  }
+  .job-action-btn.reopen{
+    background:var(--gray-bg);
+    color:var(--muted);
+  }
+  .job-action-btn.reopen:hover{
+    background:var(--gray-text);
+    color:white;
+  }
+  .job-action-btn.cal-toggle{
+    background:var(--accent-light);
+    color:var(--accent);
+  }
+  .job-action-btn.cal-toggle:hover{
+    background:var(--accent);
+    color:white;
+  }
+  .job-action-btn.cal-toggle.active{
+    background:var(--gray-bg);
+    color:var(--muted);
+  }
+  .job-action-btn.cal-toggle.active:hover{
+    background:var(--gray-text);
+    color:white;
+  }
+  .job-action-btn.hold-toggle{
+    background:var(--hold-light);
+    color:var(--hold);
+  }
+  .job-action-btn.hold-toggle:hover{
+    background:var(--hold);
+    color:white;
+  }
+  .job-action-btn.hold-toggle.active{
+    background:var(--hold);
+    color:white;
+  }
+  .job-action-btn.hold-toggle.active:hover{
+    background:#b8730f;
+    color:white;
+  }
+  .hidden-from-cal-note{
+    font-size:11.5px;
+    color:var(--muted);
+    background:var(--gray-bg);
+    border-radius:6px;
+    padding:7px 10px;
+    margin-bottom:10px;
+  }
+  .onhold-note{
+    font-size:11.5px;
+    color:var(--hold);
+    background:var(--hold-light);
+    border-radius:6px;
+    padding:7px 10px;
+    margin-bottom:10px;
+    font-weight:600;
+  }
+  .overdue-note{
+    font-size:11.5px;
+    color:var(--overdue);
+    background:var(--overdue-light);
+    border-radius:6px;
+    padding:7px 10px;
+    margin-bottom:10px;
+    font-weight:600;
+  }
+  .job-fields-row{
+    display:flex;
+    gap:12px;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    margin-bottom:10px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--border);
+  }
+  .job-fields-row .field{
+    display:flex;
+    flex-direction:column;
+  }
+  .job-fields-row input, .job-fields-row select{
+    padding:6px 8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:12.5px;
+    font-family:inherit;
+    background:var(--panel);
+  }
+  .job-fields-row input[type="date"]{width:132px;}
+  .job-fields-row input[type="number"]{width:56px;}
+  .job-fields-row select.super-select{width:150px;}
+  .job-fields-row select.status-select{width:140px;}
+  .end-date-readout{
+    font-size:11.5px;
+    color:var(--muted);
+    padding-bottom:7px;
+  }
+  .sub-label{
+    font-size:10.5px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    margin:8px 0 4px;
+  }
+  .drop-zone{
+    border:1.5px dashed var(--border);
+    border-radius:8px;
+    padding:8px;
+    min-height:40px;
+    margin-bottom:6px;
+  }
+  .drop-zone.drag-target{
+    border-color:var(--accent);
+    background:var(--accent-light);
+  }
+  .drop-zone-placeholder{
+    font-size:11.5px;
+    color:var(--muted);
+    text-align:center;
+    padding:4px;
+  }
+  .assigned-list{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .assigned-chip{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    font-size:12px;
+    padding:4px 8px;
+    border-radius:12px;
+    background:var(--accent-light);
+    color:var(--accent);
+  }
+  .assigned-chip.super{
+    background:var(--super-light);
+    color:var(--super);
+  }
+  .assigned-chip.vehicle{
+    background:var(--vehicle-light);
+    color:var(--vehicle);
+  }
+  .assigned-chip.warning{
+    background:var(--warn-light);
+    color:var(--warn);
+  }
+  .assigned-chip button{
+    background:none;border:none;cursor:pointer;color:inherit;font-size:12px;line-height:1;padding:0;
+  }
+  .assign-select{
+    width:100%;
+    padding:6px 8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:12.5px;
+    font-family:inherit;
+    background:var(--bg);
+    margin-top:2px;
+  }
+  .empty-day{
+    color:var(--muted);
+    font-size:13px;
+    text-align:center;
+    padding:30px 10px;
+  }
+  .avail-section{
+    border-top:1px solid var(--border);
+    padding:14px 20px;
+  }
+  .avail-section h4{
+    margin:0 0 8px;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    color:var(--muted);
+  }
+  .avail-list{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:4px;
+  }
+  .avail-chip{
+    font-size:12px;
+    padding:4px 9px;
+    border-radius:12px;
+    background:var(--bg);
+    border:1px solid var(--border);
+  }
+  .avail-chip.vehicle{
+    border-color:var(--vehicle-light);
+    color:var(--vehicle);
+  }
+  .avail-chip.warning{
+    background:var(--warn-light);
+    border-color:rgba(242,201,76,.45);
+    color:var(--warn);
+    font-weight:600;
+  }
+
+  /* Jobs tab */
+  .jobs-view{
+    flex:1;
+    padding:20px 28px;
+    overflow-y:auto;
+  }
+  .jobs-view-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .jobs-view-header h2{
+    font-size:20px;
+    margin:0;
+  }
+  .jobs-search{
+    padding:8px 12px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13px;
+    font-family:inherit;
+    width:220px;
+  }
+  .new-job-panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+    margin-bottom:22px;
+    display:flex;
+    gap:10px;
+    align-items:flex-end;
+    flex-wrap:wrap;
+  }
+  .new-job-panel .field{
+    display:flex;
+    flex-direction:column;
+  }
+  .new-job-panel input{
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13px;
+    font-family:inherit;
+  }
+  .new-job-panel select{
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13px;
+    font-family:inherit;
+    background:var(--panel);
+    width:160px;
+  }
+  .new-job-panel input[name="jobNumJV"]{width:90px;}
+  .new-job-panel input[name="jobNameJV"]{width:190px;}
+  .new-job-panel input[type="date"]{width:150px;}
+  .new-job-panel input[type="number"]{width:70px;}
+  .new-job-panel button{
+    background:var(--accent);
+    color:white;
+    border:none;
+    border-radius:6px;
+    padding:9px 14px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    height:36px;
+  }
+
+  .jobs-subtab-bar{
+    display:flex;
+    gap:8px;
+    margin-bottom:18px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .jobs-subtab-btn{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    border:none;
+    background:none;
+    padding:9px 4px 11px;
+    margin-right:14px;
+    font-size:13.5px;
+    font-weight:700;
+    color:var(--muted);
+    cursor:pointer;
+    border-bottom:2.5px solid transparent;
+    margin-bottom:-1px;
+  }
+  .jobs-subtab-btn:hover{color:var(--text);}
+  .subtab-count{
+    font-size:11px;
+    font-weight:700;
+    background:var(--gray-bg);
+    color:var(--muted);
+    border-radius:10px;
+    padding:1px 8px;
+    min-width:18px;
+    text-align:center;
+  }
+  .jobs-subtab-btn.upcoming.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .jobs-subtab-btn.upcoming.active .subtab-count{background:var(--accent-light);color:var(--accent);}
+  .jobs-subtab-btn.ongoing.active{color:var(--green);border-bottom-color:var(--green);}
+  .jobs-subtab-btn.ongoing.active .subtab-count{background:var(--green-light);color:var(--green);}
+  .jobs-subtab-btn.completed.active{color:var(--gray-text);border-bottom-color:var(--gray-text);}
+  .jobs-subtab-btn.completed.active .subtab-count{background:var(--gray-bg);color:var(--text);}
+  .jobs-subtab-btn.crew.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .jobs-subtab-btn.crew.active .subtab-count{background:var(--accent-light);color:var(--accent);}
+  .jobs-subtab-btn.vehicles.active{color:var(--vehicle);border-bottom-color:var(--vehicle);}
+  .jobs-subtab-btn.vehicles.active .subtab-count{background:var(--vehicle-light);color:var(--vehicle);}
+
+  .mgmt-add-form{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+    margin-bottom:22px;
+    max-width:360px;
+  }
+  .mgmt-add-form .add-block-title{margin-bottom:8px;}
+  .mgmt-add-form input, .mgmt-add-form select{
+    width:100%;
+    padding:9px 10px;
+    margin-bottom:8px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13.5px;
+    font-family:inherit;
+    background:var(--bg);
+  }
+  .mgmt-add-form button{
+    padding:9px 16px;
+    background:var(--accent);
+    color:white;
+    border:none;
+    border-radius:6px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .mgmt-add-form button:hover{background:#3b7be6;}
+  .mgmt-add-form.vehicle-form button{background:var(--vehicle);}
+  .mgmt-add-form.vehicle-form button:hover{background:#0f9a8b;}
+
+  .mgmt-group{margin-bottom:24px;}
+  .mgmt-group-title{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:8px;
+  }
+  .mgmt-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:11px 14px;
+    margin-bottom:8px;
+    max-width:480px;
+  }
+  .mgmt-row-name{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:14px;
+  }
+  .mgmt-row-sub{
+    font-size:11.5px;
+    color:var(--muted);
+  }
+  .mgmt-remove-btn{
+    background:var(--gray-bg);
+    color:var(--muted);
+    border:none;
+    border-radius:6px;
+    padding:6px 12px;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .mgmt-remove-btn:hover{background:var(--danger);color:white;}
+  .mgmt-edit-btn{
+    background:var(--accent-light);
+    color:var(--accent);
+    border:none;
+    border-radius:6px;
+    padding:6px 12px;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .mgmt-edit-btn:hover{background:var(--accent);color:white;}
+  .mgmt-row-editing{
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+    background:var(--accent-light);
+    border-color:var(--accent);
+  }
+  .mgmt-edit-input{
+    flex:1;
+    min-width:140px;
+    padding:7px 9px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13.5px;
+    font-family:inherit;
+  }
+  .mgmt-edit-select{
+    padding:7px 9px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    font-size:13.5px;
+    font-family:inherit;
+    background:var(--panel);
+  }
+  .mgmt-save-btn, .mgmt-cancel-btn{
+    border:none;
+    border-radius:6px;
+    padding:7px 14px;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .mgmt-save-btn{
+    background:var(--green);
+    color:white;
+  }
+  .mgmt-save-btn:hover{background:#158058;}
+  .mgmt-cancel-btn{
+    background:var(--gray-bg);
+    color:var(--text);
+  }
+  .mgmt-cancel-btn:hover{background:var(--border);}
+  .no-jobs{
+    color:var(--muted);
+    font-size:13px;
+    text-align:center;
+    padding:20px 10px;
+  }
+
+  .person-modal-header{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:14px;
+    padding-bottom:12px;
+    border-bottom:1px solid var(--border);
+  }
+  .person-modal-name{
+    margin:0;
+    font-size:18px;
+    flex:1;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .person-modal-role{
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    padding:3px 9px;
+    border-radius:10px;
+  }
+  .person-modal-role.super{
+    background:var(--super-light);
+    color:var(--super);
+  }
+  .person-modal-role.laborer{
+    background:var(--accent-light);
+    color:var(--accent);
+  }
+  .person-modal-count{
+    font-size:11.5px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    font-weight:700;
+    margin-bottom:8px;
+  }
+
+/* ===================== Mobile layout ===================== */
+@media (max-width: 760px){
+  html, body{ height:100vh; height:100dvh; }
+  .app{ height:100vh; height:100dvh; }
+
+  /* Sidebar hidden on mobile: drag-and-drop needs a mouse. Use the
+     Crew & Vehicles tab to manage people/vehicles, and the "+ Assign..."
+     dropdowns on each job to assign them instead. */
+  .sidebar{ display:none; }
+
+  /* Tab bar becomes a fixed bottom app-nav bar */
+  .tab-bar{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    top:auto;
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    border-bottom:none;
+    border-top:1px solid var(--border);
+    z-index:900;
+    flex-wrap:nowrap;
+  }
+  .tab-buttons{ flex:1; gap:2px; }
+  .tab-btn{
+    flex:1;
+    text-align:center;
+    padding:9px 2px;
+    margin-bottom:0;
+    font-size:12px;
+    border-bottom:none;
+    border-radius:8px;
+  }
+  .tab-btn.active{ background:var(--accent-light); }
+  .legend{ display:none; }
+
+  .tab-content{ padding-bottom:0; }
+
+  /* Calendar tab: stack calendar above the day panel, both scroll as one column */
+  .tab-pane{
+    flex-direction:column;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .calendar-panel{
+    flex:none;
+    padding:12px 12px 6px;
+    overflow:visible;
+  }
+  .detail-panel{
+    width:100%;
+    flex:none;
+    border-left:none;
+    border-top:1px solid var(--border);
+    overflow:visible;
+    padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  .cal-header h2{ font-size:17px; }
+  .weekdays div{ font-size:9.5px; }
+  .cal-grid{ gap:4px; }
+  .day-cell{ min-height:56px; padding:4px; gap:2px; }
+  .day-num{ font-size:11px; }
+  .job-pill{ font-size:8.5px; padding:1px 4px; }
+
+  /* Job View / Crew & Vehicles tabs: full-height scroll with room above the bottom bar */
+  .jobs-view{
+    padding:14px 14px calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  .jobs-subtab-bar{
+    overflow-x:auto;
+    flex-wrap:nowrap;
+    -webkit-overflow-scrolling:touch;
+  }
+  .jobs-subtab-btn{ white-space:nowrap; margin-right:10px; }
+  .new-job-panel, .mgmt-add-form{ max-width:100%; }
+
+  /* Stack every inline field group full-width for touch */
+  .add-job, .new-job-panel, .job-fields-row, .mgmt-row-editing{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .add-job > div, .new-job-panel .field, .job-fields-row .field{
+    width:100%;
+  }
+  .add-job input, .add-job select,
+  .new-job-panel input, .new-job-panel select,
+  .job-fields-row input, .job-fields-row select,
+  .mgmt-edit-input, .mgmt-edit-select{
+    width:100% !important;
+    max-width:none;
+  }
+  .add-job button, .new-job-panel button{
+    width:100%;
+    margin-top:2px;
+  }
+
+  .job-line{ flex-wrap:wrap; row-gap:6px; }
+  .job-line-main{ width:100%; min-width:0; }
+  .job-line-meta{ width:100%; flex-wrap:wrap; }
+
+  .mgmt-row{ max-width:100%; flex-wrap:wrap; gap:8px; }
+
+  /* Job detail popup becomes a bottom sheet */
+  .modal-overlay{ align-items:flex-end; padding:0; }
+  .modal-panel{
+    width:100%;
+    max-width:100%;
+    max-height:88vh;
+    border-radius:16px 16px 0 0;
+    padding:16px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+  .job-line{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    row-gap:6px;
+    gap:14px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-left:4px solid var(--border);
+    border-radius:8px;
+    padding:11px 16px;
+    margin-bottom:8px;
+    cursor:pointer;
+    transition:background .12s, border-color .12s;
+  }
+  .job-line:hover{
+    background:var(--bg);
+    border-color:var(--accent);
+  }
+  .job-line.ongoing{border-left-color:var(--green);}
+  .job-line.upcoming{border-left-color:var(--accent);}
+  .job-line.completed{border-left-color:var(--gray-text);}
+  .job-line.onhold{border-left-color:var(--hold);}
+  .job-line.overdue{border-left-color:var(--overdue);}
+  .job-line.drag-over{
+    background:var(--accent-light);
+    border-color:var(--accent);
+  }
+  .job-line-main{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    min-width:180px;
+    flex:1 1 auto;
+  }
+  .job-line-num{
+    font-size:12px;
+    color:var(--muted);
+    flex-shrink:0;
+  }
+  .job-line-name{
+    font-size:14.5px;
+    font-weight:600;
+    color:var(--text);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    min-width:60px;
+  }
+  .job-line-super{
+    font-size:12px;
+    color:var(--muted);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:160px;
+    flex-shrink:1;
+  }
+  .job-line-meta{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px 14px;
+    flex-shrink:1;
+    min-width:0;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .job-line-dates{white-space:nowrap;}
+  .job-line-count{white-space:nowrap;}
+  .job-line-hidden-tag{
+    font-size:10.5px;
+    color:var(--muted);
+    background:var(--gray-bg);
+    border-radius:5px;
+    padding:1px 6px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .job-line-hold-tag{
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--hold);
+    background:var(--hold-light);
+    border-radius:5px;
+    padding:1px 6px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .job-line-overdue-tag{
+    font-size:10.5px;
+    font-weight:700;
+    color:var(--overdue);
+    background:var(--overdue-light);
+    border-radius:5px;
+    padding:1px 6px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .job-line.compact{
+    padding:9px 12px;
+  }
+  .job-line.compact .job-line-main{
+    min-width:0;
+  }
+  .job-line.compact .job-line-name{
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .job-line.compact .status-pill{
+    flex-shrink:0;
+    margin-left:8px;
+  }
+
+  /* Job detail modal */
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:1000;
+    padding:24px;
+  }
+  .modal-overlay.open{
+    display:flex;
+  }
+  .modal-panel{
+    background:var(--panel);
+    border-radius:14px;
+    width:480px;
+    max-width:100%;
+    max-height:88vh;
+    overflow-y:auto;
+    box-shadow:0 16px 48px rgba(0,0,0,0.6);border:1px solid var(--border);
+    padding:20px 22px 22px;
+    position:relative;
+  }
+  .modal-close{
+    position:absolute;
+    top:14px;
+    right:14px;
+    background:var(--gray-bg);
+    border:none;
+    border-radius:50%;
+    width:28px;
+    height:28px;
+    font-size:14px;
+    color:var(--muted);
+    cursor:pointer;
+    line-height:1;
+  }
+  .modal-close:hover{
+    background:var(--gray-text);
+    color:white;
+  }
+  .modal-title{
+    font-size:12px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--muted);
+    margin:0 0 12px;
+    padding-right:30px;
+  }
+  .job-pill{cursor:pointer;}
+
+  .confirm-panel{
+    width:340px;
+  }
+  .confirm-message{
+    font-size:14px;
+    color:var(--text);
+    line-height:1.5;
+    margin:0 0 18px;
+  }
+  .confirm-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+  }
+  .confirm-btn{
+    border:none;
+    border-radius:6px;
+    padding:9px 16px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .confirm-btn.cancel{
+    background:var(--gray-bg);
+    color:var(--text);
+  }
+  .confirm-btn.cancel:hover{background:var(--border);}
+  .confirm-btn.danger{
+    background:var(--danger);
+    color:white;
+  }
+  .confirm-btn.danger:hover{background:#c53531;}
+
+  .toast{
+    position:fixed;
+    bottom:24px;
+    left:50%;
+    transform:translateX(-50%) translateY(20px);
+    background:#2b3138;
+    color:var(--text);
+    border:1px solid var(--border);
+    padding:11px 18px;
+    border-radius:8px;
+    font-size:13.5px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.25);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s, transform .2s;
+    z-index:2000;
+    max-width:80vw;
+    text-align:center;
+  }
+  .toast.show{
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h1>Crew &amp; Fleet</h1>
+      <p id="rosterSubtitle">0 employees • 0 vehicles</p>
+      <div class="io-buttons">
+        <button class="io-btn" onclick="exportData()">Export</button>
+        <button class="io-btn" onclick="triggerImport()">Import</button>
+      </div>
+    </div>
+    <div class="sidebar-hint">Drag a name or vehicle onto a job to assign it</div>
+    <div class="roster" id="rosterContainer"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="tab-bar">
+      <div class="tab-buttons">
+        <button class="tab-btn active" id="tabBtnCalendar" onclick="switchTab('calendar')">Calendar</button>
+        <button class="tab-btn" id="tabBtnJobs" onclick="switchTab('jobs')">Job View</button>
+        <button class="tab-btn" id="tabBtnCrew" onclick="switchTab('crew')">Crew &amp; Vehicles</button>
+      </div>
+      <div class="legend">
+        <span><i class="ongoing"></i>Current</span>
+        <span><i class="upcoming"></i>Upcoming</span>
+        <span><i class="completed"></i>Past</span>
+        <span><i class="onhold"></i>On Hold</span>
+        <span><i class="overdue"></i>Overdue</span>
+      </div>
+    </div>
+
+    <div class="tab-content">
+
+      <!-- CALENDAR TAB -->
+      <div class="tab-pane" id="paneCalendar">
+        <div class="calendar-panel" id="calendarPanel">
+          <div class="cal-header">
+            <h2 id="monthLabel"></h2>
+            <div class="cal-nav">
+              <button onclick="changeMonth(-1)">&#8249;</button>
+              <button class="today-btn" onclick="goToday()">Today</button>
+              <button onclick="changeMonth(1)">&#8250;</button>
+            </div>
+          </div>
+          <div class="weekdays">
+            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </div>
+
+        <div class="detail-panel">
+          <div class="detail-header">
+            <h3 id="detailDate">Select a day</h3>
+            <p id="detailSub">Click a date on the calendar</p>
+          </div>
+          <div class="detail-body">
+            <div id="jobsContainer"></div>
+          </div>
+          <div class="avail-section">
+            <h4>Crew &amp; Vehicle Load Today</h4>
+            <div class="sub-label" style="margin-top:0;">Laborers (jobs today)</div>
+            <div class="avail-list" id="availLaborList"></div>
+            <div class="sub-label">Vehicles</div>
+            <div class="avail-list" id="availVehList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- JOBS TAB -->
+      <div class="tab-pane" id="paneJobs" style="display:none;">
+        <div class="jobs-view">
+          <div class="jobs-view-header">
+            <h2>All Jobs</h2>
+            <input type="text" class="jobs-search" id="jobsSearch" placeholder="Search jobs..." oninput="renderJobsView()">
+          </div>
+
+          <div class="new-job-panel">
+            <div class="field">
+              <span class="field-label">Job #</span>
+              <input type="text" name="jobNumJV" id="jvJobNumber" placeholder="1024">
+            </div>
+            <div class="field">
+              <span class="field-label">Job / site name</span>
+              <input type="text" name="jobNameJV" id="jvJobName" placeholder="e.g. 4th St. Renovation">
+            </div>
+            <div class="field">
+              <span class="field-label">Start date</span>
+              <input type="date" id="jvJobStart">
+            </div>
+            <div class="field">
+              <span class="field-label">Duration (days)</span>
+              <input type="number" id="jvJobDuration" min="1" value="1">
+            </div>
+            <div class="field">
+              <span class="field-label">Superintendent</span>
+              <select id="jvJobSuper"></select>
+            </div>
+            <button onclick="addJobFromJobsView()">+ Add Job</button>
+          </div>
+
+          <div class="jobs-subtab-bar">
+            <button class="jobs-subtab-btn upcoming" id="subtabUpcoming" onclick="switchJobsSubTab('upcoming')">Upcoming <span class="subtab-count" id="countUpcoming">0</span></button>
+            <button class="jobs-subtab-btn ongoing" id="subtabOngoing" onclick="switchJobsSubTab('ongoing')">Current <span class="subtab-count" id="countOngoing">0</span></button>
+            <button class="jobs-subtab-btn completed" id="subtabCompleted" onclick="switchJobsSubTab('completed')">Past <span class="subtab-count" id="countCompleted">0</span></button>
+          </div>
+
+          <div id="jobsSubtabList"></div>
+        </div>
+      </div>
+
+      <!-- CREW & VEHICLES TAB -->
+      <div class="tab-pane" id="paneCrew" style="display:none;">
+        <div class="jobs-view">
+          <div class="jobs-view-header">
+            <h2>Crew &amp; Vehicles</h2>
+            <div class="io-buttons">
+              <button class="io-btn" onclick="exportData()">Export</button>
+              <button class="io-btn" onclick="triggerImport()">Import</button>
+            </div>
+          </div>
+
+          <div class="jobs-subtab-bar">
+            <button class="jobs-subtab-btn crew" id="subtabCrewPeople" onclick="switchCrewSubTab('crew')">Crew <span class="subtab-count" id="countCrewPeople">0</span></button>
+            <button class="jobs-subtab-btn vehicles" id="subtabCrewVehicles" onclick="switchCrewSubTab('vehicles')">Vehicles <span class="subtab-count" id="countCrewVehicles">0</span></button>
+          </div>
+
+          <div id="crewSubtabContent"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- TOAST NOTIFICATION -->
+<div class="toast" id="toast"></div>
+
+<!-- IMPORT FILE PICKER (hidden) -->
+<input type="file" id="importFileInput" accept="application/json,.json" style="display:none" onchange="handleImportFile(event)">
+
+<!-- CONFIRM DIALOG -->
+<div class="modal-overlay" id="confirmOverlay">
+  <div class="modal-panel confirm-panel">
+    <div class="modal-title">Please Confirm</div>
+    <p id="confirmMessage" class="confirm-message"></p>
+    <div class="confirm-actions">
+      <button class="confirm-btn cancel" onclick="cancelConfirm()">Cancel</button>
+      <button class="confirm-btn danger" id="confirmProceedBtn" onclick="proceedConfirm()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- JOB DETAIL MODAL -->
+<div class="modal-overlay" id="jobModalOverlay" onclick="if(event.target===this) closeJobModal();">
+  <div class="modal-panel">
+    <button class="modal-close" onclick="closeJobModal()">✕</button>
+    <div class="modal-title" id="jobModalTitle">Job Details</div>
+    <div id="jobModalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ---------- Export / Import (backup & restore, since data lives in this browser only) ---------- */
+
+async function exportData(){
+  const dataStr = JSON.stringify(state, null, 2);
+  const filename = 'crew-scheduler-backup-' + fmtDate(new Date()) + '.json';
+  let saved = false;
+
+  if(window.claude && typeof window.claude.use === 'function'){
+    try{
+      const downloads = await window.claude.use('downloads');
+      if(downloads){
+        try{
+          await downloads.save({filename, data: dataStr});
+          showToast('Exported ' + filename);
+          saved = true;
+        }catch(err){
+          if(err && err.code === 'declined') saved = true; // user cancelled the save dialog; don't nag
+        }
+      }
+    }catch(e){}
+  }
+  if(saved) return;
+
+  try{
+    const url = URL.createObjectURL(new Blob([dataStr], {type:'application/json'}));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    showToast('Exported ' + filename);
+    return;
+  }catch(e){}
+
+  try{
+    await navigator.clipboard.writeText(dataStr);
+    showToast('Copied backup data to clipboard — paste it into a text file to save it.');
+  }catch(e){
+    console.log(dataStr);
+    showToast('Could not export automatically — check the browser console for the data.');
+  }
+}
+
+function triggerImport(){
+  document.getElementById('importFileInput').click();
+}
+
+function handleImportFile(event){
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(){
+    let imported;
+    try{
+      imported = JSON.parse(reader.result);
+    }catch(e){
+      showToast('Could not read that file — is it a valid export?');
+      event.target.value = '';
+      return;
+    }
+    if(!imported || !Array.isArray(imported.employees) || !Array.isArray(imported.jobs)){
+      showToast('That file doesn\'t look like a Crew Scheduler backup.');
+      event.target.value = '';
+      return;
+    }
+    requestConfirm('Import this backup? It will replace all current employees, vehicles, and jobs in this browser.', ()=>{
+      if(!Array.isArray(imported.vehicles)) imported.vehicles = [];
+      imported.trelloImportedV1 = true;
+      state = imported;
+      saveState();
+      renderAll();
+      showToast('Import complete.');
+    });
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- Toast notification (non-blocking, works in sandboxed frames) ---------- */
+
+let toastTimer = null;
+
+function showToast(message){
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ toast.classList.remove('show'); }, 3200);
+}
+
+/* ---------- Custom confirm dialog (works even where native confirm() is blocked) ---------- */
+
+let pendingConfirmAction = null;
+
+function requestConfirm(message, onConfirmed){
+  pendingConfirmAction = onConfirmed;
+  document.getElementById('confirmMessage').textContent = message;
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+
+function cancelConfirm(){
+  pendingConfirmAction = null;
+  document.getElementById('confirmOverlay').classList.remove('open');
+}
+
+function proceedConfirm(){
+  const action = pendingConfirmAction;
+  cancelConfirm();
+  if(action) action();
+}
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') cancelConfirm();
+});
+
+/* ---------- Data model ----------
+state = {
+  employees: [{id, name, role: 'laborer'|'super'}],
+  vehicles: [{id, name, type}],
+  jobs: [ {id, jobNumber, name, startDate:"YYYY-MM-DD", duration:Number,
+           superintendentId:string|null, assigned:[employeeId,...], assignedVehicles:[vehicleId,...]} ]
+}
+------------------------------------ */
+
+const STORAGE_KEY = 'crewSchedulerData';
+let state = null;
+let viewDate = new Date();
+let selectedDay = fmtDate(new Date());
+let activeTab = 'calendar';
+let jobsSubTab = 'ongoing';
+let crewSubTab = 'crew';
+let editingEmployeeId = null;
+let editingVehicleId = null;
+let dragPayload = null; // fallback for browsers where dataTransfer read on drop is unreliable
+let dbHandle = null;
+let usingSharedDb = false;
+
+// Jobs imported from Trello board "Raleigh Current Jobs" (Current Job List + Ready to Start)
+function buildTrelloImportedJobs(){
+  const currentJobsSeed = [
+    ['D6707','BKD Pinehurst EMS (Laundry room leak) EMS Venture','2026-09-23'],
+    ['D6747','Country Day 2 Unit Water Loss EMS Venture','2026-09-22'],
+    ['26-354','Link Caylx Grubb','2026-09-14'],
+    ['V6649','Independence Village of Old Raleigh (Unit 138 mold) EMS Venture','2026-09-04'],
+    ['D6574','The Legacy at Southpointe (Rm 135 moisture check) EMS Venture','2026-09-17'],
+    ['26-351','BKD Smithfield Venture','2026-09-11'],
+    ['V8731','BKD Wake Forest (Unit 210-AL cabinets and countertops) EMS Venture','2026-09-03'],
+    ['D6585','BKD Moorehead City EMS Venture','2026-08-21'],
+    ['26-311','Cumberland Crossing NSPIRE Items Related','2026-08-05'],
+    ['V8527','Links at Noda Line Striping EMS Grubb','2026-07-14'],
+    ['26-195','Westminister Village Fire Related Affordable','2026-04-13'],
+    ['26-355','Fairview Gardens 7G+7F Under Slab Leak Related','2026-09-14'],
+    ['25-391','Fairview Gardens Renovation Project - Related SC','2025-10-30'],
+    ['25-143','Stone MIL Reno (4601 Inwood Rd) - SDR NC','2025-09-23']
+  ];
+  const upcomingJobsSeed = [
+    ['26-374','Trask Return Vent Cleaning'],
+    ['26-156','Morgan Stanley Mold Cleaning'],
+    ['D6747-1','Country Day 2 Unit Water Loss Rebuild Venture'],
+    ['26-373',"Sumler Terrace UTO's 09-22-26 Related"],
+    ['26-239','RMF Door Replacement Navion'],
+    ['26-372','Madeline Suite Disinfection UNCW'],
+    ['26-371','UNCW Police Station Duct Cleaning'],
+    ['26-370','Allen Ceiling Disinfection UNCW'],
+    ['26-369','Trask Duct Cleaning UNCW'],
+    ['26-368','MBD Building Cleaning - Hampstead Baobab 17 LLC'],
+    ['26-353','Stone Porters Neck 2026'],
+    ['26-341','Washington Terrace 530 June Ln. 105 Shower CMC'],
+    ['26-349','Link Linden Unit 547 TPO Roof Leak Grubb'],
+    ['26-348','The Shore Ceiling Disinfection Brandon Organ'],
+    ['26-338','The Shore Disinfection 2.0 Brandon Organ'],
+    ['26-336','UNCW Faculty Building Remediation'],
+    ['D6585-1','BKD Moorehead City Rebuild Venture'],
+    ['26-333','PPH Lab Disinfection UNCW'],
+    ['26-304','CMS Fume Hood Cleaning UNCW']
+  ];
+  return [
+    ...currentJobsSeed.map(([jobNumber, name, startDate]) => ({
+      id: uid(), jobNumber, name, startDate, duration: 1,
+      superintendentId: null, assigned: [], assignedVehicles: [], shifts: {}, hideFromCalendar: false, onHold: false, statusOverride: 'ongoing'
+    })),
+    ...upcomingJobsSeed.map(([jobNumber, name]) => ({
+      id: uid(), jobNumber, name, startDate: null, duration: 1,
+      superintendentId: null, assigned: [], assignedVehicles: [], shifts: {}, hideFromCalendar: false, onHold: false, statusOverride: 'upcoming'
+    }))
+  ];
+}
+
+// Re-sync with Trello: add any job not already present (matched by job number),
+// and if a job already exists but moved lists in Trello, update its status to match.
+function resyncTrelloJobs(existingJobs){
+  const fresh = buildTrelloImportedJobs();
+  fresh.forEach(freshJob=>{
+    const match = existingJobs.find(j => j.jobNumber && j.jobNumber === freshJob.jobNumber);
+    if(match){
+      match.statusOverride = freshJob.statusOverride;
+      if(!match.startDate && freshJob.startDate) match.startDate = freshJob.startDate;
+    } else {
+      existingJobs.push(freshJob);
+    }
+  });
+  return existingJobs;
+}
+
+function normalizeState(parsed){
+  if(parsed.jobs && !Array.isArray(parsed.jobs)){
+    const migrated = [];
+    Object.keys(parsed.jobs).forEach(dateKey=>{
+      parsed.jobs[dateKey].forEach(j=>{
+        migrated.push({id:j.id, jobNumber:'', name:j.name, startDate:dateKey, duration:1, superintendentId:null, assigned:j.assigned||[], assignedVehicles:[]});
+      });
+    });
+    parsed.jobs = migrated;
+  }
+  if(!parsed.vehicles) parsed.vehicles = [];
+  if(!parsed.jobs) parsed.jobs = [];
+  if(!parsed.employees) parsed.employees = [];
+  (parsed.jobs||[]).forEach(j=>{
+    if(!j.assignedVehicles) j.assignedVehicles = [];
+    if(j.jobNumber === undefined) j.jobNumber = '';
+    if(j.superintendentId === undefined) j.superintendentId = null;
+    if(!j.shifts) j.shifts = {};
+    if(j.onHold === undefined) j.onHold = false;
+    if(j.hideFromCalendar === undefined) j.hideFromCalendar = false;
+    if(j.statusOverride === undefined){
+      j.statusOverride = j.manuallyCompleted ? 'completed' : null;
+    }
+    delete j.manuallyCompleted;
+  });
+  if(!parsed.trelloImportedV1){
+    parsed.jobs = parsed.jobs.concat(buildTrelloImportedJobs());
+    parsed.trelloImportedV1 = true;
+    parsed.trelloImportedV2 = true;
+  } else if(!parsed.trelloImportedV2){
+    parsed.jobs = resyncTrelloJobs(parsed.jobs);
+    parsed.trelloImportedV2 = true;
+  }
+  return parsed;
+}
+
+function buildDefaultState(){
+  const s1 = uid(), s2 = uid();
+  return {
+    trelloImportedV1: true,
+    trelloImportedV2: true,
+    employees: [
+      {id: s1, name:'Mike Torres', role:'super'},
+      {id: s2, name:'Dana Lee', role:'super'},
+      {id: uid(), name:'Carlos Vega', role:'laborer'},
+      {id: uid(), name:'Josh Patel', role:'laborer'},
+      {id: uid(), name:'Ryan Moore', role:'laborer'},
+      {id: uid(), name:'Tim Osei', role:'laborer'}
+    ],
+    vehicles: [
+      {id: uid(), name:'Truck 12', type:'Box Truck'},
+      {id: uid(), name:'Trailer A', type:'Trailer'},
+      {id: uid(), name:'Truck 4', type:'Pickup Truck'}
+    ],
+    jobs: buildTrelloImportedJobs()
+  };
+}
+
+function loadStateLocal(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const normalized = normalizeState(JSON.parse(raw));
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized)); }catch(e){}
+      return normalized;
+    }
+  }catch(e){ console.error('load failed', e); }
+  return buildDefaultState();
+}
+
+// Deep-clone a value coming out of the shared db before mutating it —
+// delivered snapshot bodies are frozen.
+function cloneDeep(value){
+  return JSON.parse(JSON.stringify(value));
+}
+
+let pendingSave = Promise.resolve();
+
+function saveState(){
+  // Chain writes so we never fire two saves to the same doc at once.
+  pendingSave = pendingSave.then(()=> persistState()).catch(()=>{});
+  return pendingSave;
+}
+
+async function persistState(){
+  if(usingSharedDb && dbHandle){
+    try{
+      await dbHandle.doc('app/state').set(state);
+    }catch(e){
+      console.error('shared save failed', e);
+      showToast('Could not save to the shared board — your last change may not be visible to others.');
+    }
+  } else {
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }catch(e){ console.error('save failed', e); }
+  }
+}
+
+async function initApp(){
+  attachCalendarWheelNav();
+
+  // Inside the SDR tracker, the parent page supplies a shared Supabase-backed store.
+  try{ if(window.parent !== window && window.parent.sdrCrewDb) dbHandle = window.parent.sdrCrewDb; }catch(e){}
+  if(!dbHandle && window.claude && typeof window.claude.use === 'function'){
+    try{ dbHandle = await window.claude.use('db'); }catch(e){ dbHandle = null; }
+  }
+
+  if(dbHandle){
+    usingSharedDb = true;
+    try{
+      const snap = await dbHandle.doc('app/state').get();
+      if(snap && snap.exists){
+        state = normalizeState(cloneDeep(snap.data()));
+      } else {
+        state = buildDefaultState();
+        await dbHandle.doc('app/state').set(state);
+      }
+      dbHandle.doc('app/state').onSnapshot(
+        (snap2)=>{
+          if(snap2 && snap2.exists){
+            state = normalizeState(cloneDeep(snap2.data()));
+            renderAll();
+          }
+        },
+        (err)=>{
+          console.error('shared board connection lost', err);
+          showToast('Lost connection to the shared board. Reload to reconnect.');
+        }
+      );
+    }catch(e){
+      console.error('shared db init failed, falling back to this device only', e);
+      usingSharedDb = false;
+      state = loadStateLocal();
+    }
+  } else {
+    state = loadStateLocal();
+  }
+
+  renderAll();
+}
+
+function uid(){
+  return Math.random().toString(36).slice(2,10);
+}
+
+function fmtDate(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseDate(str){
+  return new Date(str + 'T00:00:00');
+}
+
+function addDaysToKey(key, n){
+  const d = parseDate(key);
+  d.setDate(d.getDate()+n);
+  return fmtDate(d);
+}
+
+function jobEndKey(job){
+  if(!job.startDate) return null;
+  return addDaysToKey(job.startDate, Math.max(1,job.duration)-1);
+}
+
+function formatShort(key){
+  return parseDate(key).toLocaleDateString('default', {month:'short', day:'numeric'});
+}
+
+/* ---------- Job / employee / vehicle helpers ---------- */
+
+function isJobActiveOnDay(job, dayKey){
+  if(!job.startDate) return false;
+  return dayKey >= job.startDate && dayKey <= jobEndKey(job);
+}
+
+function jobsOverlap(a, b){
+  if(!a.startDate || !b.startDate) return false;
+  return a.startDate <= jobEndKey(b) && b.startDate <= jobEndKey(a);
+}
+
+function getJobsForDay(dayKey){
+  return state.jobs.filter(j => isJobActiveOnDay(j, dayKey));
+}
+
+// Same as getJobsForDay, but leaves out jobs marked "hidden from calendar" —
+// used only for what the calendar itself displays. Availability/conflict
+// checks still use getJobsForDay so crew tracking stays accurate.
+function getVisibleJobsForDay(dayKey){
+  return getJobsForDay(dayKey).filter(j => !j.hideFromCalendar);
+}
+
+function toggleHideFromCalendar(jobId){
+  const job = state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  job.hideFromCalendar = !job.hideFromCalendar;
+  saveState();
+  renderAll();
+}
+
+function toggleOnHold(jobId){
+  const job = state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  job.onHold = !job.onHold;
+  saveState();
+  renderAll();
+}
+
+// A job is "overdue" when its calculated end date (start + duration) has
+// already passed but it's still sitting as Current — a sign to either
+// extend the duration or mark it complete.
+function isOverdue(job){
+  if(!job.startDate) return false;
+  if(getJobStatus(job) !== 'ongoing') return false;
+  return fmtDate(new Date()) > jobEndKey(job);
+}
+
+// "On hold" is a visual flag layered on top of the normal ongoing/upcoming/
+// completed status — the job keeps its real status (still counts as Current,
+// etc.) but is colored/labeled differently so it stands out as waiting on
+// something (material, access, etc.) rather than actively being worked.
+function getDisplayStatusClass(job){
+  if(isOverdue(job)) return 'overdue';
+  if(job.onHold) return 'onhold';
+  return getJobStatus(job);
+}
+
+function getDisplayStatusLabel(job){
+  if(isOverdue(job)) return 'overdue';
+  if(job.onHold) return 'on hold';
+  return getJobStatus(job);
+}
+
+function employeeJobCount(empId, dayKey){
+  return getJobsForDay(dayKey).filter(j => j.assigned.includes(empId)).length;
+}
+
+function isVehicleBusy(vehId, dayKey){
+  return getJobsForDay(dayKey).some(j => j.assignedVehicles.includes(vehId));
+}
+
+// Employees (laborers and superintendents alike) can be assigned to more than
+// one job in the same day — this app just flags it rather than blocking it.
+function isAvailableForJob(emp, job){
+  return true;
+}
+
+// How many OTHER jobs (overlapping this job's dates) this employee is already on —
+// used to show a double-booked warning, not to block assignment.
+function employeeOverlapCount(empId, job){
+  return state.jobs.filter(other =>
+    other.id !== job.id &&
+    other.assigned.includes(empId) &&
+    jobsOverlap(other, job)
+  ).length;
+}
+
+// Same idea, but scoped to one specific day rather than this job's whole span —
+// avoids flagging a "conflict" on a day where nothing actually overlaps.
+function employeeOverlapCountForDay(empId, job, dayKey){
+  return getJobsForDay(dayKey).filter(j => j.id !== job.id && j.assigned.includes(empId)).length;
+}
+
+function isVehicleAvailableForJob(vehicle, job){
+  return !state.jobs.some(other =>
+    other.id !== job.id &&
+    other.assignedVehicles.includes(vehicle.id) &&
+    jobsOverlap(other, job)
+  );
+}
+
+function getJobStatus(job){
+  if(job.statusOverride) return job.statusOverride;
+  if(!job.startDate) return 'upcoming';
+  const todayKey = fmtDate(new Date());
+  const end = jobEndKey(job);
+  if(todayKey < job.startDate) return 'upcoming';
+  if(todayKey > end) return 'completed';
+  return 'ongoing';
+}
+
+/* ---------- Tabs ---------- */
+
+function switchTab(tab){
+  activeTab = tab;
+  document.getElementById('paneCalendar').style.display = tab==='calendar' ? 'flex' : 'none';
+  document.getElementById('paneJobs').style.display = tab==='jobs' ? 'flex' : 'none';
+  document.getElementById('paneCrew').style.display = tab==='crew' ? 'flex' : 'none';
+  document.getElementById('tabBtnCalendar').classList.toggle('active', tab==='calendar');
+  document.getElementById('tabBtnJobs').classList.toggle('active', tab==='jobs');
+  document.getElementById('tabBtnCrew').classList.toggle('active', tab==='crew');
+  if(tab==='jobs') renderJobsView();
+  if(tab==='crew') renderCrewTab();
+}
+
+/* ---------- Rendering: Sidebar ---------- */
+
+function renderSidebar(){
+  const container = document.getElementById('rosterContainer');
+  const supers = state.employees.filter(e=>e.role==='super');
+  const laborers = state.employees.filter(e=>e.role==='laborer');
+  document.getElementById('rosterSubtitle').textContent =
+    `${state.employees.length} employee${state.employees.length===1?'':'s'} • ${state.vehicles.length} vehicle${state.vehicles.length===1?'':'s'}`;
+
+  container.innerHTML = '';
+  container.appendChild(renderGroup('Superintendents', supers, 'super'));
+  container.appendChild(renderGroup('Laborers', laborers, 'laborer'));
+  container.appendChild(renderVehicleGroup());
+}
+
+function makeDraggable(row, type, id, disabled){
+  if(disabled) return;
+  row.draggable = true;
+  row.ondragstart = (e)=>{
+    dragPayload = {type, id};
+    e.dataTransfer.effectAllowed = 'copy';
+    try{ e.dataTransfer.setData('text/plain', JSON.stringify(dragPayload)); }catch(err){}
+    row.classList.add('dragging');
+  };
+  row.ondragend = ()=>{ row.classList.remove('dragging'); dragPayload = null; };
+}
+
+function renderGroup(title, list, kind){
+  const wrap = document.createElement('div');
+  wrap.className = 'roster-group';
+  const h = document.createElement('div');
+  h.className = 'roster-group-title';
+  h.textContent = title;
+  wrap.appendChild(h);
+
+  if(list.length === 0){
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'None added yet';
+    wrap.appendChild(note);
+    return wrap;
+  }
+
+  list.forEach(emp=>{
+    const row = document.createElement('div');
+    const isSuper = kind === 'super';
+    const count = employeeJobCount(emp.id, selectedDay);
+    const doubleBooked = !isSuper && count > 1;
+    row.className = 'emp-row available clickable';
+    row.title = 'Click to see ' + emp.name + '\'s jobs';
+    row.onclick = ()=> openPersonModal(emp.id);
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'emp-name';
+    const grip = document.createElement('span');
+    grip.className = 'grip';
+    grip.textContent = '⠿';
+    const dot = document.createElement('span');
+    dot.className = 'dot ' + kind;
+    const label = document.createElement('span');
+    label.className = 'emp-label';
+    label.textContent = emp.name;
+    nameWrap.appendChild(grip);
+    nameWrap.appendChild(dot);
+    nameWrap.appendChild(label);
+    row.appendChild(nameWrap);
+
+    const right = document.createElement('div');
+    right.style.display='flex';
+    right.style.alignItems='center';
+    right.style.gap='6px';
+
+    if(count > 0){
+      const badge = document.createElement('span');
+      badge.className = 'badge' + (doubleBooked ? ' badge-warning' : '');
+      badge.textContent = (doubleBooked ? '⚠ ' : '') + count + ' job' + (count>1?'s':'');
+      badge.title = doubleBooked ? 'Double-booked today — on ' + count + ' jobs' : '';
+      right.appendChild(badge);
+    }
+    const del = document.createElement('button');
+    del.className = 'del-emp';
+    del.textContent = '✕';
+    del.title = 'Remove employee';
+    del.draggable = false;
+    del.onmousedown = (e)=> e.stopPropagation();
+    del.ondragstart = (e)=> { e.preventDefault(); e.stopPropagation(); };
+    del.onclick = (e)=>{ e.stopPropagation(); removeEmployee(emp.id); };
+    right.appendChild(del);
+
+    row.appendChild(right);
+    makeDraggable(row, 'employee', emp.id, false);
+    wrap.appendChild(row);
+  });
+
+  return wrap;
+}
+
+function renderVehicleGroup(){
+  const wrap = document.createElement('div');
+  wrap.className = 'roster-group';
+  const h = document.createElement('div');
+  h.className = 'roster-group-title';
+  h.textContent = 'Vehicles';
+  wrap.appendChild(h);
+
+  if(state.vehicles.length === 0){
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'None added yet';
+    wrap.appendChild(note);
+    return wrap;
+  }
+
+  state.vehicles.forEach(veh=>{
+    const row = document.createElement('div');
+    const busy = isVehicleBusy(veh.id, selectedDay);
+    row.className = 'emp-row ' + (busy ? 'busy' : 'available');
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'emp-name';
+    const grip = document.createElement('span');
+    grip.className = 'grip';
+    grip.textContent = '⠿';
+    const dot = document.createElement('span');
+    dot.className = 'dot vehicle';
+    const label = document.createElement('span');
+    label.className = 'emp-label';
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = veh.name;
+    const subSpan = document.createElement('span');
+    subSpan.className = 'emp-sub';
+    subSpan.textContent = veh.type;
+    label.appendChild(nameSpan);
+    label.appendChild(subSpan);
+    nameWrap.appendChild(grip);
+    nameWrap.appendChild(dot);
+    nameWrap.appendChild(label);
+    row.appendChild(nameWrap);
+
+    const del = document.createElement('button');
+    del.className = 'del-emp';
+    del.textContent = '✕';
+    del.title = 'Remove vehicle';
+    del.draggable = false;
+    del.onmousedown = (e)=> e.stopPropagation();
+    del.ondragstart = (e)=> { e.preventDefault(); e.stopPropagation(); };
+    del.onclick = (e)=>{ e.stopPropagation(); removeVehicle(veh.id); };
+    row.appendChild(del);
+
+    makeDraggable(row, 'vehicle', veh.id, busy);
+    wrap.appendChild(row);
+  });
+
+  return wrap;
+}
+
+/* ---------- Rendering: Crew & Vehicles management tab ---------- */
+
+function switchCrewSubTab(tab){
+  crewSubTab = tab;
+  renderCrewTab();
+}
+
+function renderCrewTab(){
+  document.getElementById('countCrewPeople').textContent = state.employees.length;
+  document.getElementById('countCrewVehicles').textContent = state.vehicles.length;
+  document.getElementById('subtabCrewPeople').classList.toggle('active', crewSubTab === 'crew');
+  document.getElementById('subtabCrewVehicles').classList.toggle('active', crewSubTab === 'vehicles');
+
+  const container = document.getElementById('crewSubtabContent');
+  container.innerHTML = '';
+  if(crewSubTab === 'crew'){
+    container.appendChild(buildEmployeeAddForm());
+    const sortedEmployees = state.employees.slice().sort((a,b)=> a.name.localeCompare(b.name, undefined, {sensitivity:'base'}));
+    const supers = sortedEmployees.filter(e=>e.role==='super');
+    const laborers = sortedEmployees.filter(e=>e.role==='laborer');
+    container.appendChild(buildMgmtGroup('Superintendents', supers, 'super'));
+    container.appendChild(buildMgmtGroup('Laborers', laborers, 'laborer'));
+  } else {
+    container.appendChild(buildVehicleAddForm());
+    const sortedVehicles = state.vehicles.slice().sort((a,b)=> a.name.localeCompare(b.name, undefined, {sensitivity:'base'}));
+    container.appendChild(buildMgmtGroup('Vehicles', sortedVehicles, 'vehicle'));
+  }
+}
+
+function buildEmployeeAddForm(){
+  const form = document.createElement('div');
+  form.className = 'mgmt-add-form';
+
+  const title = document.createElement('div');
+  title.className = 'add-block-title';
+  title.textContent = 'Add Employee';
+  form.appendChild(title);
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.id = 'newEmpName';
+  nameInput.placeholder = 'Employee name';
+  form.appendChild(nameInput);
+
+  const roleSelect = document.createElement('select');
+  roleSelect.id = 'newEmpRole';
+  const opt1 = document.createElement('option');
+  opt1.value = 'laborer';
+  opt1.textContent = 'Laborer';
+  const opt2 = document.createElement('option');
+  opt2.value = 'super';
+  opt2.textContent = 'Superintendent';
+  roleSelect.appendChild(opt1);
+  roleSelect.appendChild(opt2);
+  form.appendChild(roleSelect);
+
+  const btn = document.createElement('button');
+  btn.textContent = '+ Add Employee';
+  btn.onclick = addEmployee;
+  form.appendChild(btn);
+
+  return form;
+}
+
+function buildVehicleAddForm(){
+  const form = document.createElement('div');
+  form.className = 'mgmt-add-form vehicle-form';
+
+  const title = document.createElement('div');
+  title.className = 'add-block-title';
+  title.textContent = 'Add Vehicle';
+  form.appendChild(title);
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.id = 'newVehName';
+  nameInput.placeholder = 'Vehicle name / ID';
+  form.appendChild(nameInput);
+
+  const typeSelect = document.createElement('select');
+  typeSelect.id = 'newVehType';
+  ['Box Truck','Trailer','Pickup Truck','Other'].forEach(t=>{
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    typeSelect.appendChild(opt);
+  });
+  form.appendChild(typeSelect);
+
+  const btn = document.createElement('button');
+  btn.textContent = '+ Add Vehicle';
+  btn.onclick = addVehicle;
+  form.appendChild(btn);
+
+  return form;
+}
+
+function buildMgmtGroup(title, list, kind){
+  const wrap = document.createElement('div');
+  wrap.className = 'mgmt-group';
+
+  const h = document.createElement('div');
+  h.className = 'mgmt-group-title';
+  h.textContent = title;
+  wrap.appendChild(h);
+
+  if(list.length === 0){
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'None added yet';
+    wrap.appendChild(note);
+    return wrap;
+  }
+
+  list.forEach(item=>{
+    const isEditing = kind === 'vehicle'
+      ? editingVehicleId === item.id
+      : editingEmployeeId === item.id;
+
+    if(isEditing){
+      wrap.appendChild(kind === 'vehicle' ? buildVehicleEditRow(item) : buildEmployeeEditRow(item));
+      return;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'mgmt-row';
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'mgmt-row-name';
+    const dot = document.createElement('span');
+    dot.className = 'dot ' + kind;
+    nameWrap.appendChild(dot);
+
+    if(kind === 'vehicle'){
+      const label = document.createElement('span');
+      label.style.display = 'flex';
+      label.style.flexDirection = 'column';
+      label.style.lineHeight = '1.3';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = item.name;
+      const subSpan = document.createElement('span');
+      subSpan.className = 'mgmt-row-sub';
+      subSpan.textContent = item.type;
+      label.appendChild(nameSpan);
+      label.appendChild(subSpan);
+      nameWrap.appendChild(label);
+    } else {
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = item.name;
+      nameWrap.appendChild(nameSpan);
+    }
+
+    row.appendChild(nameWrap);
+
+    const btnGroup = document.createElement('div');
+    btnGroup.style.display = 'flex';
+    btnGroup.style.gap = '6px';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'mgmt-edit-btn';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = ()=>{
+      if(kind === 'vehicle') editingVehicleId = item.id;
+      else editingEmployeeId = item.id;
+      renderCrewTab();
+    };
+    btnGroup.appendChild(editBtn);
+
+    const del = document.createElement('button');
+    del.className = 'mgmt-remove-btn';
+    del.textContent = 'Remove';
+    del.onclick = ()=>{
+      if(kind === 'vehicle') removeVehicle(item.id);
+      else removeEmployee(item.id);
+    };
+    btnGroup.appendChild(del);
+
+    row.appendChild(btnGroup);
+
+    wrap.appendChild(row);
+  });
+
+  return wrap;
+}
+
+function buildEmployeeEditRow(emp){
+  const row = document.createElement('div');
+  row.className = 'mgmt-row mgmt-row-editing';
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.value = emp.name;
+  nameInput.className = 'mgmt-edit-input';
+
+  const roleSelect = document.createElement('select');
+  roleSelect.className = 'mgmt-edit-select';
+  const opt1 = document.createElement('option');
+  opt1.value = 'laborer';
+  opt1.textContent = 'Laborer';
+  const opt2 = document.createElement('option');
+  opt2.value = 'super';
+  opt2.textContent = 'Superintendent';
+  roleSelect.appendChild(opt1);
+  roleSelect.appendChild(opt2);
+  roleSelect.value = emp.role;
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'mgmt-save-btn';
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = ()=>{
+    const newName = nameInput.value.trim();
+    if(newName){
+      emp.name = newName;
+      emp.role = roleSelect.value;
+      saveState();
+    }
+    editingEmployeeId = null;
+    renderAll();
+  };
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'mgmt-cancel-btn';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = ()=>{
+    editingEmployeeId = null;
+    renderCrewTab();
+  };
+
+  row.appendChild(nameInput);
+  row.appendChild(roleSelect);
+  row.appendChild(saveBtn);
+  row.appendChild(cancelBtn);
+  return row;
+}
+
+function buildVehicleEditRow(veh){
+  const row = document.createElement('div');
+  row.className = 'mgmt-row mgmt-row-editing';
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.value = veh.name;
+  nameInput.className = 'mgmt-edit-input';
+
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'mgmt-edit-select';
+  ['Box Truck','Trailer','Pickup Truck','Other'].forEach(t=>{
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    typeSelect.appendChild(opt);
+  });
+  typeSelect.value = veh.type;
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'mgmt-save-btn';
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = ()=>{
+    const newName = nameInput.value.trim();
+    if(newName){
+      veh.name = newName;
+      veh.type = typeSelect.value;
+      saveState();
+    }
+    editingVehicleId = null;
+    renderAll();
+  };
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'mgmt-cancel-btn';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = ()=>{
+    editingVehicleId = null;
+    renderCrewTab();
+  };
+
+  row.appendChild(nameInput);
+  row.appendChild(typeSelect);
+  row.appendChild(saveBtn);
+  row.appendChild(cancelBtn);
+  return row;
+}
+
+function addEmployee(){
+  const nameInput = document.getElementById('newEmpName');
+  const roleSelect = document.getElementById('newEmpRole');
+  const name = nameInput.value.trim();
+  if(!name) return;
+  state.employees.push({id: uid(), name, role: roleSelect.value});
+  nameInput.value = '';
+  saveState();
+  renderAll();
+}
+
+function removeEmployee(id){
+  const emp = state.employees.find(e=>e.id===id);
+  const label = emp ? emp.name : 'this employee';
+  requestConfirm('Remove ' + label + ' from the roster? This will unassign them from any jobs.', ()=>{
+    state.employees = state.employees.filter(e=>e.id!==id);
+    state.jobs.forEach(j=>{
+      j.assigned = j.assigned.filter(a=>a!==id);
+      if(j.superintendentId === id) j.superintendentId = null;
+    });
+    saveState();
+    renderAll();
+  });
+}
+
+function addVehicle(){
+  const nameInput = document.getElementById('newVehName');
+  const typeSelect = document.getElementById('newVehType');
+  const name = nameInput.value.trim();
+  if(!name) return;
+  state.vehicles.push({id: uid(), name, type: typeSelect.value});
+  nameInput.value = '';
+  saveState();
+  renderAll();
+}
+
+function removeVehicle(id){
+  const veh = state.vehicles.find(v=>v.id===id);
+  const label = veh ? veh.name : 'this vehicle';
+  requestConfirm('Remove ' + label + ' from the fleet? This will unassign it from any jobs.', ()=>{
+    state.vehicles = state.vehicles.filter(v=>v.id!==id);
+    state.jobs.forEach(j=>{ j.assignedVehicles = j.assignedVehicles.filter(a=>a!==id); });
+    saveState();
+    renderAll();
+  });
+}
+
+/* ---------- Rendering: Calendar ---------- */
+
+function renderCalendar(){
+  const label = viewDate.toLocaleString('default', {month:'long', year:'numeric'});
+  document.getElementById('monthLabel').textContent = label;
+
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const totalCells = 42;
+  const todayKey = fmtDate(new Date());
+  const MAX_PILLS = 3;
+
+  for(let i=0;i<totalCells;i++){
+    let cellDate, otherMonth=false;
+    const dayNum = i - startOffset + 1;
+    if(dayNum < 1){
+      cellDate = new Date(year, month-1, daysInPrevMonth + dayNum);
+      otherMonth = true;
+    } else if(dayNum > daysInMonth){
+      cellDate = new Date(year, month+1, dayNum - daysInMonth);
+      otherMonth = true;
+    } else {
+      cellDate = new Date(year, month, dayNum);
+    }
+    const key = fmtDate(cellDate);
+    const cell = document.createElement('div');
+    cell.className = 'day-cell';
+    if(otherMonth) cell.classList.add('other-month');
+    if(key === todayKey) cell.classList.add('today');
+    if(key === selectedDay) cell.classList.add('selected');
+    cell.onclick = ()=>{ selectedDay = key; renderAll(); };
+
+    const num = document.createElement('div');
+    num.className = 'day-num';
+    num.textContent = cellDate.getDate();
+    cell.appendChild(num);
+
+    const jobs = getVisibleJobsForDay(key);
+    jobs.slice(0, MAX_PILLS).forEach(job=>{
+      const pill = document.createElement('div');
+      pill.className = 'job-pill ' + getDisplayStatusClass(job);
+      const prefix = isOverdue(job) ? '⚠ ' : (job.onHold ? '⏸ ' : '');
+      const label = prefix + (job.jobNumber ? '#'+job.jobNumber+' ' : '') + job.name;
+      pill.textContent = label;
+      pill.title = label;
+      pill.onclick = (e)=>{ e.stopPropagation(); openJobModal(job.id, key); };
+      cell.appendChild(pill);
+    });
+    if(jobs.length > MAX_PILLS){
+      const more = document.createElement('div');
+      more.className = 'job-pill-more';
+      more.textContent = '+' + (jobs.length - MAX_PILLS) + ' more';
+      cell.appendChild(more);
+    }
+
+    grid.appendChild(cell);
+  }
+}
+
+function changeMonth(delta){
+  viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+delta, 1);
+  renderCalendar();
+}
+
+let calendarWheelCooldown = false;
+
+function attachCalendarWheelNav(){
+  const panel = document.getElementById('calendarPanel');
+  if(!panel) return;
+  panel.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    if(calendarWheelCooldown) return;
+    if(Math.abs(e.deltaY) < 8) return; // ignore tiny trackpad jitter
+    calendarWheelCooldown = true;
+    changeMonth(e.deltaY > 0 ? 1 : -1);
+    setTimeout(()=>{ calendarWheelCooldown = false; }, 420);
+  }, { passive: false });
+}
+
+function goToday(){
+  viewDate = new Date();
+  selectedDay = fmtDate(new Date());
+  renderAll();
+}
+
+/* ---------- Rendering: Detail Panel (Calendar tab) ---------- */
+
+function renderDetail(){
+  const d = parseDate(selectedDay);
+  const dateLabel = d.toLocaleDateString('default', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+  document.getElementById('detailDate').textContent = dateLabel;
+  const jobs = getVisibleJobsForDay(selectedDay);
+  document.getElementById('detailSub').textContent = jobs.length + ' job' + (jobs.length===1?'':'s') + ' active';
+
+  const container = document.getElementById('jobsContainer');
+  container.innerHTML = '';
+
+  if(jobs.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'empty-day';
+    empty.textContent = 'No jobs active on this day yet. Add one above.';
+    container.appendChild(empty);
+  } else {
+    jobs.forEach(job=> container.appendChild(buildJobListRow(job, true)));
+  }
+
+  renderAvailableLists();
+}
+
+/* ---------- Shared job card builder (used by Calendar tab + Job View tab) ---------- */
+
+function buildJobCard(job, variant, contextDay){
+  const status = getJobStatus(job);
+  const displayClass = getDisplayStatusClass(job);
+  const card = document.createElement('div');
+  card.className = (variant === 'calendar' ? 'job-card ' : 'job-row ') + displayClass;
+
+  // ---- Title row: job # + name + status pill + delete ----
+  const titleRow = document.createElement('div');
+  titleRow.className = 'job-title-row';
+
+  const titleInputs = document.createElement('div');
+  titleInputs.className = 'job-title-inputs';
+
+  const nameInput = document.createElement('input');
+  nameInput.className = 'job-name-input';
+  nameInput.type = 'text';
+  nameInput.value = job.name;
+  nameInput.onchange = ()=> updateJobField(job.id, 'name', nameInput.value);
+  titleInputs.appendChild(nameInput);
+
+  const titleMeta = document.createElement('div');
+  titleMeta.className = 'job-title-meta';
+
+  const numInput = document.createElement('input');
+  numInput.className = 'job-num-input';
+  numInput.type = 'text';
+  numInput.placeholder = 'Job #';
+  numInput.value = job.jobNumber || '';
+  numInput.onchange = ()=> updateJobField(job.id, 'jobNumber', numInput.value);
+  titleMeta.appendChild(numInput);
+
+  const pill = document.createElement('span');
+  pill.className = 'status-pill ' + displayClass;
+  pill.textContent = getDisplayStatusLabel(job);
+  titleMeta.appendChild(pill);
+
+  titleInputs.appendChild(titleMeta);
+  titleRow.appendChild(titleInputs);
+
+  const actions = document.createElement('div');
+  actions.style.display = 'flex';
+  actions.style.flexDirection = 'column';
+  actions.style.alignItems = 'flex-end';
+  actions.style.gap = '4px';
+  actions.style.flexShrink = '0';
+
+  if(status === 'completed'){
+    const reopenBtn = document.createElement('button');
+    reopenBtn.className = 'job-action-btn reopen';
+    reopenBtn.textContent = '↺ Reopen';
+    reopenBtn.onclick = ()=> setJobStatusOverride(job.id, '');
+    actions.appendChild(reopenBtn);
+  } else {
+    const completeBtn = document.createElement('button');
+    completeBtn.className = 'job-action-btn complete';
+    completeBtn.textContent = '✓ Mark Complete';
+    completeBtn.onclick = ()=> setJobStatusOverride(job.id, 'completed');
+    actions.appendChild(completeBtn);
+  }
+
+  const holdToggleBtn = document.createElement('button');
+  holdToggleBtn.className = 'job-action-btn hold-toggle' + (job.onHold ? ' active' : '');
+  holdToggleBtn.textContent = job.onHold ? '▶ Resume Job' : '⏸ Put On Hold';
+  holdToggleBtn.title = job.onHold
+    ? 'Take this job off hold.'
+    : 'Flag this job as on hold — e.g. waiting on material — without changing its schedule.';
+  holdToggleBtn.onclick = ()=> toggleOnHold(job.id);
+  actions.appendChild(holdToggleBtn);
+
+  const calToggleBtn = document.createElement('button');
+  calToggleBtn.className = 'job-action-btn cal-toggle' + (job.hideFromCalendar ? ' active' : '');
+  calToggleBtn.textContent = job.hideFromCalendar ? '📅 Show on Calendar' : '🚫 Hide from Calendar';
+  calToggleBtn.title = job.hideFromCalendar
+    ? 'This job is hidden from the calendar grid. Crew is still tracked.'
+    : 'Keep long-running jobs off the calendar grid while still tracking crew.';
+  calToggleBtn.onclick = ()=> toggleHideFromCalendar(job.id);
+  actions.appendChild(calToggleBtn);
+
+  const del = document.createElement('button');
+  del.className = 'job-del';
+  del.textContent = '✕ Remove';
+  del.onclick = ()=> removeJob(job.id);
+  actions.appendChild(del);
+
+  titleRow.appendChild(actions);
+
+  card.appendChild(titleRow);
+
+  if(isOverdue(job)){
+    const overdueNote = document.createElement('div');
+    overdueNote.className = 'overdue-note';
+    overdueNote.textContent = '⚠ Past its scheduled end date (' + formatShort(jobEndKey(job)) + ') — extend the duration or mark it complete.';
+    card.appendChild(overdueNote);
+  }
+
+  if(job.onHold){
+    const holdNote = document.createElement('div');
+    holdNote.className = 'onhold-note';
+    holdNote.textContent = '⏸ On hold — still an active job, just flagged as waiting on something (material, access, etc.) before crew can continue.';
+    card.appendChild(holdNote);
+  }
+
+  if(job.hideFromCalendar){
+    const hiddenNote = document.createElement('div');
+    hiddenNote.className = 'hidden-from-cal-note';
+    hiddenNote.textContent = '🚫 Hidden from the calendar grid — crew and vehicle assignments below are still tracked.';
+    card.appendChild(hiddenNote);
+  }
+
+  // ---- Fields row: start date, duration, end date, superintendent ----
+  const fields = document.createElement('div');
+  fields.className = 'job-fields-row';
+
+  const startField = document.createElement('div');
+  startField.className = 'field';
+  const startLabel = document.createElement('span');
+  startLabel.className = 'field-label';
+  startLabel.textContent = 'Start date';
+  const startInput = document.createElement('input');
+  startInput.type = 'date';
+  startInput.value = job.startDate || '';
+  startInput.onchange = ()=> updateJobField(job.id, 'startDate', startInput.value);
+  startField.appendChild(startLabel);
+  startField.appendChild(startInput);
+  fields.appendChild(startField);
+
+  const durField = document.createElement('div');
+  durField.className = 'field';
+  const durLabel = document.createElement('span');
+  durLabel.className = 'field-label';
+  durLabel.textContent = 'Duration (days)';
+  const durInput = document.createElement('input');
+  durInput.type = 'number';
+  durInput.min = 1;
+  durInput.value = job.duration;
+  durInput.onchange = ()=> updateJobField(job.id, 'duration', durInput.value);
+  durField.appendChild(durLabel);
+  durField.appendChild(durInput);
+  fields.appendChild(durField);
+
+  const endReadout = document.createElement('div');
+  endReadout.className = 'end-date-readout';
+  endReadout.textContent = job.startDate ? ('Ends ' + formatShort(jobEndKey(job))) : 'No start date — won\'t show on calendar';
+  fields.appendChild(endReadout);
+
+  const superField = document.createElement('div');
+  superField.className = 'field';
+  const superLabel = document.createElement('span');
+  superLabel.className = 'field-label';
+  superLabel.textContent = 'Superintendent';
+  const superSelect = document.createElement('select');
+  superSelect.className = 'super-select';
+  const noneOpt = document.createElement('option');
+  noneOpt.value = '';
+  noneOpt.textContent = '— None —';
+  superSelect.appendChild(noneOpt);
+  state.employees.filter(e=>e.role==='super').forEach(sup=>{
+    const opt = document.createElement('option');
+    opt.value = sup.id;
+    opt.textContent = sup.name;
+    if(job.superintendentId === sup.id) opt.selected = true;
+    superSelect.appendChild(opt);
+  });
+  superSelect.onchange = ()=> updateJobField(job.id, 'superintendentId', superSelect.value || null);
+  superField.appendChild(superLabel);
+  superField.appendChild(superSelect);
+  fields.appendChild(superField);
+
+  const statusField = document.createElement('div');
+  statusField.className = 'field';
+  const statusLabel = document.createElement('span');
+  statusLabel.className = 'field-label';
+  statusLabel.textContent = 'Status';
+  const statusSelect = document.createElement('select');
+  statusSelect.className = 'status-select';
+  const statusOptions = [
+    {value:'', label:'Auto (by date)'},
+    {value:'upcoming', label:'Upcoming'},
+    {value:'ongoing', label:'Current'},
+    {value:'completed', label:'Past'}
+  ];
+  statusOptions.forEach(o=>{
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    opt.textContent = o.label;
+    if((job.statusOverride || '') === o.value) opt.selected = true;
+    statusSelect.appendChild(opt);
+  });
+  statusSelect.onchange = ()=> setJobStatusOverride(job.id, statusSelect.value);
+  statusField.appendChild(statusLabel);
+  statusField.appendChild(statusSelect);
+  fields.appendChild(statusField);
+
+  card.appendChild(fields);
+
+  // ---- Crew section (drop zone + chips + dropdown) ----
+  const crewLabel = document.createElement('div');
+  crewLabel.className = 'sub-label';
+  crewLabel.style.marginTop = '0';
+  crewLabel.textContent = 'Crew';
+  card.appendChild(crewLabel);
+
+  const crewZone = document.createElement('div');
+  crewZone.className = 'drop-zone';
+  const crewChips = document.createElement('div');
+  crewChips.className = 'assigned-list';
+  if(job.assigned.length === 0){
+    const ph = document.createElement('div');
+    ph.className = 'drop-zone-placeholder';
+    ph.textContent = 'Drag crew here, or use the dropdown below';
+    crewChips.appendChild(ph);
+  } else {
+    job.assigned.forEach(empId=>{
+      const emp = state.employees.find(e=>e.id===empId);
+      if(!emp) return;
+      const overlap = contextDay ? employeeOverlapCountForDay(empId, job, contextDay) : employeeOverlapCount(empId, job);
+      const chip = document.createElement('span');
+      chip.className = 'assigned-chip' + (emp.role==='super' ? ' super' : '') + (overlap > 0 ? ' warning' : '');
+      const txt = document.createElement('span');
+      txt.textContent = emp.name + (overlap > 0 ? ' ⚠' : '');
+      if(overlap > 0){
+        txt.title = contextDay
+          ? 'Also on ' + overlap + ' other job' + (overlap>1?'s':'') + ' on ' + formatShort(contextDay)
+          : 'Also on ' + overlap + ' other job' + (overlap>1?'s':'') + ' at some point during this job\'s dates';
+      }
+      chip.appendChild(txt);
+      const rm = document.createElement('button');
+      rm.textContent = '✕';
+      rm.onclick = ()=> unassign(job.id, empId);
+      chip.appendChild(rm);
+      crewChips.appendChild(chip);
+    });
+  }
+  crewZone.appendChild(crewChips);
+  attachDropZone(crewZone, job, 'employee');
+  card.appendChild(crewZone);
+
+  const empSelect = document.createElement('select');
+  empSelect.className = 'assign-select';
+  const empDefaultOpt = document.createElement('option');
+  empDefaultOpt.value = '';
+  empDefaultOpt.textContent = '+ Assign employee...';
+  empSelect.appendChild(empDefaultOpt);
+  state.employees.filter(emp => !job.assigned.includes(emp.id))
+    .forEach(emp=>{
+      const opt = document.createElement('option');
+      opt.value = emp.id;
+      const overlap = contextDay ? employeeOverlapCountForDay(emp.id, job, contextDay) : employeeOverlapCount(emp.id, job);
+      let label = emp.name;
+      if(emp.role === 'super') label += ' (Superintendent)';
+      if(overlap > 0) label += ' ⚠ (on ' + overlap + ' other job' + (overlap>1?'s':'') + ')';
+      opt.textContent = label;
+      empSelect.appendChild(opt);
+    });
+  empSelect.onchange = ()=>{ if(empSelect.value) assign(job.id, empSelect.value); };
+  card.appendChild(empSelect);
+
+  // ---- Vehicles section (drop zone + chips + dropdown) ----
+  const vehLabel = document.createElement('div');
+  vehLabel.className = 'sub-label';
+  vehLabel.textContent = 'Vehicles';
+  card.appendChild(vehLabel);
+
+  const vehZone = document.createElement('div');
+  vehZone.className = 'drop-zone';
+  const vehChips = document.createElement('div');
+  vehChips.className = 'assigned-list';
+  if(job.assignedVehicles.length === 0){
+    const ph = document.createElement('div');
+    ph.className = 'drop-zone-placeholder';
+    ph.textContent = 'Drag a vehicle here, or use the dropdown below';
+    vehChips.appendChild(ph);
+  } else {
+    job.assignedVehicles.forEach(vehId=>{
+      const veh = state.vehicles.find(v=>v.id===vehId);
+      if(!veh) return;
+      const chip = document.createElement('span');
+      chip.className = 'assigned-chip vehicle';
+      const txt = document.createElement('span');
+      txt.textContent = veh.name;
+      chip.appendChild(txt);
+      const rm = document.createElement('button');
+      rm.textContent = '✕';
+      rm.onclick = ()=> unassignVehicle(job.id, vehId);
+      chip.appendChild(rm);
+      vehChips.appendChild(chip);
+    });
+  }
+  vehZone.appendChild(vehChips);
+  attachDropZone(vehZone, job, 'vehicle');
+  card.appendChild(vehZone);
+
+  const vehSelect = document.createElement('select');
+  vehSelect.className = 'assign-select';
+  const vehDefaultOpt = document.createElement('option');
+  vehDefaultOpt.value = '';
+  vehDefaultOpt.textContent = '+ Assign vehicle...';
+  vehSelect.appendChild(vehDefaultOpt);
+  state.vehicles.filter(veh => !job.assignedVehicles.includes(veh.id) && isVehicleAvailableForJob(veh, job))
+    .forEach(veh=>{
+      const opt = document.createElement('option');
+      opt.value = veh.id;
+      opt.textContent = veh.name + ' (' + veh.type + ')';
+      vehSelect.appendChild(opt);
+    });
+  vehSelect.onchange = ()=>{ if(vehSelect.value) assignVehicle(job.id, vehSelect.value); };
+  card.appendChild(vehSelect);
+
+  // Whole-card drop target too (in case they drop slightly outside a specific zone)
+  attachDropZone(card, job, 'both');
+
+  return card;
+}
+
+function attachDropZone(el, job, accepts){
+  el.ondragover = (e)=>{
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    el.classList.add(el.classList.contains('drop-zone') ? 'drag-target' : 'drag-over');
+  };
+  el.ondragleave = ()=>{
+    el.classList.remove('drag-target');
+    el.classList.remove('drag-over');
+  };
+  el.ondrop = (e)=>{
+    e.preventDefault();
+    el.classList.remove('drag-target');
+    el.classList.remove('drag-over');
+    let payload = dragPayload;
+    try{
+      const raw = e.dataTransfer.getData('text/plain');
+      if(raw) payload = JSON.parse(raw);
+    }catch(err){}
+    if(!payload) return;
+    if(accepts !== 'both' && payload.type !== accepts) return;
+
+    if(payload.type === 'employee'){
+      const emp = state.employees.find(x=>x.id===payload.id);
+      if(!emp || job.assigned.includes(emp.id)) return;
+      const overlap = employeeOverlapCount(emp.id, job);
+      assign(job.id, emp.id);
+      if(overlap > 0){
+        showToast(emp.name + ' is now on ' + (overlap+1) + ' jobs during this time — double-booked.');
+      }
+    } else if(payload.type === 'vehicle'){
+      const veh = state.vehicles.find(x=>x.id===payload.id);
+      if(!veh || job.assignedVehicles.includes(veh.id)) return;
+      if(!isVehicleAvailableForJob(veh, job)){
+        showToast(veh.name + ' is already booked on another job during this time.');
+        return;
+      }
+      assignVehicle(job.id, veh.id);
+    }
+  };
+}
+
+function renderAvailableLists(){
+  const laborList = document.getElementById('availLaborList');
+  laborList.innerHTML = '';
+  const laborers = state.employees.filter(e=>e.role==='laborer');
+  if(laborers.length === 0){
+    const note = document.createElement('span');
+    note.style.fontSize='12px';
+    note.style.color='var(--muted)';
+    note.textContent = 'None added yet';
+    laborList.appendChild(note);
+  } else {
+    laborers.forEach(emp=>{
+      const count = employeeJobCount(emp.id, selectedDay);
+      const chip = document.createElement('span');
+      chip.className = 'avail-chip' + (count > 1 ? ' warning' : '');
+      chip.textContent = emp.name + (count > 0 ? ' (' + count + (count>1?' ⚠':'') + ')' : '');
+      laborList.appendChild(chip);
+    });
+  }
+
+  const vehList = document.getElementById('availVehList');
+  vehList.innerHTML = '';
+  const vehicles = state.vehicles.filter(v => !isVehicleBusy(v.id, selectedDay));
+  if(vehicles.length === 0){
+    const note = document.createElement('span');
+    note.style.fontSize='12px';
+    note.style.color='var(--muted)';
+    note.textContent = 'None available';
+    vehList.appendChild(note);
+  } else {
+    vehicles.forEach(veh=>{
+      const chip = document.createElement('span');
+      chip.className = 'avail-chip vehicle';
+      chip.textContent = veh.name;
+      vehList.appendChild(chip);
+    });
+  }
+}
+
+/* ---------- Job actions ---------- */
+
+function populateSuperSelect(select){
+  if(!select) return;
+  const prevValue = select.value;
+  select.innerHTML = '';
+  const noneOpt = document.createElement('option');
+  noneOpt.value = '';
+  noneOpt.textContent = '— None —';
+  select.appendChild(noneOpt);
+  state.employees.filter(e=>e.role==='super').forEach(sup=>{
+    const opt = document.createElement('option');
+    opt.value = sup.id;
+    opt.textContent = sup.name;
+    select.appendChild(opt);
+  });
+  if([...select.options].some(o=>o.value === prevValue)){
+    select.value = prevValue;
+  }
+}
+
+function refreshJobFormSuperDropdowns(){
+  populateSuperSelect(document.getElementById('jvJobSuper'));
+}
+
+function addJobFromJobsView(){
+  const numInput = document.getElementById('jvJobNumber');
+  const nameInput = document.getElementById('jvJobName');
+  const startInput = document.getElementById('jvJobStart');
+  const durInput = document.getElementById('jvJobDuration');
+  const superSelect = document.getElementById('jvJobSuper');
+  const name = nameInput.value.trim();
+  const startDate = startInput.value || null;
+  const duration = Math.max(1, parseInt(durInput.value,10) || 1);
+  if(!name) return;
+  const superintendentId = superSelect.value || null;
+  const assigned = superintendentId ? [superintendentId] : [];
+  state.jobs.push({id: uid(), jobNumber: numInput.value.trim(), name, startDate, duration, superintendentId, assigned, assignedVehicles: [], shifts: {}, hideFromCalendar: false, onHold: false, statusOverride: null});
+  numInput.value = '';
+  nameInput.value = '';
+  startInput.value = '';
+  durInput.value = 1;
+  superSelect.value = '';
+  saveState();
+  renderAll();
+}
+
+function removeJob(jobId){
+  const job = state.jobs.find(j=>j.id===jobId);
+  const label = job ? (job.jobNumber ? '#'+job.jobNumber+' ' : '') + job.name : 'this job';
+  requestConfirm('Delete ' + label + '? This cannot be undone.', ()=>{
+    state.jobs = state.jobs.filter(j=>j.id!==jobId);
+    saveState();
+    renderAll();
+  });
+}
+
+function setJobStatusOverride(jobId, value){
+  const job = state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  job.statusOverride = value || null;
+  saveState();
+  renderAll();
+}
+
+function assign(jobId, empId){
+  const job = state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  const emp = state.employees.find(e=>e.id===empId);
+  if(!emp) return;
+  if(!isAvailableForJob(emp, job)) return;
+  job.assigned.push(empId);
+  saveState();
+  renderAll();
+}
+
+function unassign(jobId, empId){
+  const job = state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  job.assigned = job.assigned.filter(a=>a!==empId);
+  saveState();
+  renderAll();
+}
+
+function assignVehicle(jobId, vehId){
+  const job = state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  const veh = state.vehicles.find(v=>v.id===vehId);
+  if(!veh) return;
+  if(!isVehicleAvailableForJob(veh, job)) return;
+  job.assignedVehicles.push(vehId);
+  saveState();
+  renderAll();
+}
+
+function unassignVehicle(jobId, vehId){
+  const job = state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  job.assignedVehicles = job.assignedVehicles.filter(a=>a!==vehId);
+  saveState();
+  renderAll();
+}
+
+function updateJobField(jobId, field, value){
+  const job = state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  if(field === 'duration'){
+    job.duration = Math.max(1, parseInt(value,10) || 1);
+  } else if(field === 'startDate'){
+    job.startDate = value || null;
+  } else if(field === 'name'){
+    const trimmed = value.trim();
+    job.name = trimmed || job.name;
+  } else if(field === 'jobNumber'){
+    job.jobNumber = value.trim();
+  } else if(field === 'superintendentId'){
+    job.superintendentId = value || null;
+    if(value && !job.assigned.includes(value)){
+      job.assigned.push(value);
+    }
+  }
+  saveState();
+  renderAll();
+}
+
+/* ---------- Rendering: Job View tab ---------- */
+
+function switchJobsSubTab(tab){
+  jobsSubTab = tab;
+  renderJobsView();
+}
+
+function buildJobListRow(job, compact){
+  const status = getJobStatus(job);
+  const displayClass = getDisplayStatusClass(job);
+  const row = document.createElement('div');
+  row.className = 'job-line ' + displayClass + (compact ? ' compact' : '');
+  row.onclick = ()=> openJobModal(job.id, compact ? selectedDay : null);
+  attachDropZone(row, job, 'both');
+
+  const main = document.createElement('div');
+  main.className = 'job-line-main';
+  if(job.jobNumber){
+    const num = document.createElement('span');
+    num.className = 'job-line-num';
+    num.textContent = '#' + job.jobNumber;
+    main.appendChild(num);
+  }
+  const name = document.createElement('span');
+  name.className = 'job-line-name';
+  name.textContent = job.name;
+  main.appendChild(name);
+  if(isOverdue(job)){
+    const overdueTag = document.createElement('span');
+    overdueTag.className = 'job-line-overdue-tag';
+    overdueTag.textContent = '⚠ overdue';
+    overdueTag.title = 'Past its scheduled end date (' + formatShort(jobEndKey(job)) + ')';
+    main.appendChild(overdueTag);
+  }
+  if(job.onHold){
+    const holdTag = document.createElement('span');
+    holdTag.className = 'job-line-hold-tag';
+    holdTag.textContent = '⏸ on hold';
+    holdTag.title = 'On hold — waiting on something before work continues';
+    main.appendChild(holdTag);
+  }
+  if(job.hideFromCalendar){
+    const hiddenTag = document.createElement('span');
+    hiddenTag.className = 'job-line-hidden-tag';
+    hiddenTag.textContent = '🚫 off calendar';
+    hiddenTag.title = 'Hidden from the calendar grid';
+    main.appendChild(hiddenTag);
+  }
+  row.appendChild(main);
+
+  if(compact){
+    const pill = document.createElement('span');
+    pill.className = 'status-pill ' + displayClass;
+    pill.textContent = getDisplayStatusLabel(job);
+    row.appendChild(pill);
+    return row;
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'job-line-meta';
+
+  const sup = state.employees.find(e=>e.id===job.superintendentId);
+  if(sup){
+    const supSpan = document.createElement('span');
+    supSpan.className = 'job-line-super';
+    supSpan.textContent = 'Sup: ' + sup.name;
+    meta.appendChild(supSpan);
+  }
+
+  const dates = document.createElement('span');
+  dates.className = 'job-line-dates';
+  if(job.startDate){
+    const end = jobEndKey(job);
+    dates.textContent = job.duration <= 1
+      ? formatShort(job.startDate)
+      : formatShort(job.startDate) + ' – ' + formatShort(end);
+  } else {
+    dates.textContent = 'No date set';
+  }
+  meta.appendChild(dates);
+
+  const crewCount = document.createElement('span');
+  crewCount.className = 'job-line-count';
+  crewCount.textContent = job.assigned.length + ' crew';
+  meta.appendChild(crewCount);
+
+  const vehCount = document.createElement('span');
+  vehCount.className = 'job-line-count';
+  vehCount.textContent = job.assignedVehicles.length + ' vehicle' + (job.assignedVehicles.length===1?'':'s');
+  meta.appendChild(vehCount);
+
+  const pill = document.createElement('span');
+  pill.className = 'status-pill ' + displayClass;
+  pill.textContent = getDisplayStatusLabel(job);
+  meta.appendChild(pill);
+
+  row.appendChild(meta);
+
+  return row;
+}
+
+function renderJobsView(){
+  const searchTerm = (document.getElementById('jobsSearch').value || '').toLowerCase();
+  let jobs = state.jobs.filter(j =>
+    j.name.toLowerCase().includes(searchTerm) ||
+    (j.jobNumber||'').toLowerCase().includes(searchTerm)
+  );
+  jobs = jobs.slice().sort((a,b)=> (a.jobNumber || '').localeCompare(b.jobNumber || '', undefined, {numeric:true, sensitivity:'base'}));
+
+  const groups = {
+    upcoming: jobs.filter(j => getJobStatus(j) === 'upcoming'),
+    ongoing: jobs.filter(j => getJobStatus(j) === 'ongoing'),
+    completed: jobs.filter(j => getJobStatus(j) === 'completed')
+  };
+
+  document.getElementById('countUpcoming').textContent = groups.upcoming.length;
+  document.getElementById('countOngoing').textContent = groups.ongoing.length;
+  document.getElementById('countCompleted').textContent = groups.completed.length;
+
+  document.getElementById('subtabUpcoming').classList.toggle('active', jobsSubTab === 'upcoming');
+  document.getElementById('subtabOngoing').classList.toggle('active', jobsSubTab === 'ongoing');
+  document.getElementById('subtabCompleted').classList.toggle('active', jobsSubTab === 'completed');
+
+  const emptyMsgs = {
+    upcoming: 'No upcoming jobs scheduled.',
+    ongoing: 'No current jobs right now.',
+    completed: 'No past jobs yet.'
+  };
+
+  const container = document.getElementById('jobsSubtabList');
+  container.innerHTML = '';
+  const activeJobs = groups[jobsSubTab];
+  if(activeJobs.length === 0){
+    const none = document.createElement('div');
+    none.className = 'no-jobs';
+    none.textContent = emptyMsgs[jobsSubTab];
+    container.appendChild(none);
+    return;
+  }
+  activeJobs.forEach(job => container.appendChild(buildJobListRow(job)));
+}
+
+/* ---------- Job detail modal ---------- */
+
+let modalMode = null; // 'job' | 'person'
+let openModalJobId = null;
+let openModalContextDay = null;
+let openModalPersonId = null;
+
+function openJobModal(jobId, contextDay){
+  modalMode = 'job';
+  openModalJobId = jobId;
+  openModalContextDay = contextDay || null;
+  openModalPersonId = null;
+  renderJobModal();
+  document.getElementById('jobModalOverlay').classList.add('open');
+}
+
+function openPersonModal(personId){
+  modalMode = 'person';
+  openModalPersonId = personId;
+  openModalJobId = null;
+  openModalContextDay = null;
+  renderJobModal();
+  document.getElementById('jobModalOverlay').classList.add('open');
+}
+
+function closeJobModal(){
+  modalMode = null;
+  openModalJobId = null;
+  openModalContextDay = null;
+  openModalPersonId = null;
+  document.getElementById('jobModalOverlay').classList.remove('open');
+  document.getElementById('jobModalBody').innerHTML = '';
+}
+
+function renderJobModal(){
+  const body = document.getElementById('jobModalBody');
+  const titleEl = document.getElementById('jobModalTitle');
+  body.innerHTML = '';
+
+  if(modalMode === 'person'){
+    titleEl.textContent = 'Employee';
+    if(!openModalPersonId) return;
+    const person = state.employees.find(e=>e.id===openModalPersonId);
+    if(!person){ closeJobModal(); return; }
+    body.appendChild(buildPersonJobsList(person));
+    return;
+  }
+
+  titleEl.textContent = 'Job Details';
+  if(!openModalJobId) return;
+  const job = state.jobs.find(j=>j.id===openModalJobId);
+  if(!job){ closeJobModal(); return; }
+  body.appendChild(buildJobCard(job, 'modal', openModalContextDay));
+}
+
+function buildPersonJobsList(person){
+  const wrap = document.createElement('div');
+
+  const header = document.createElement('div');
+  header.className = 'person-modal-header';
+  const nameEl = document.createElement('h3');
+  nameEl.className = 'person-modal-name';
+  nameEl.textContent = person.name;
+  const roleEl = document.createElement('span');
+  roleEl.className = 'person-modal-role ' + person.role;
+  roleEl.textContent = person.role === 'super' ? 'Superintendent' : 'Laborer';
+  header.appendChild(nameEl);
+  header.appendChild(roleEl);
+  wrap.appendChild(header);
+
+  const jobs = state.jobs.filter(j => j.assigned.includes(person.id));
+  const rank = {ongoing:0, upcoming:1, completed:2};
+  jobs.sort((a,b)=>{
+    const ra = rank[getJobStatus(a)] ?? 3, rb = rank[getJobStatus(b)] ?? 3;
+    if(ra !== rb) return ra - rb;
+    return (a.jobNumber||'').localeCompare(b.jobNumber||'', undefined, {numeric:true, sensitivity:'base'});
+  });
+
+  if(jobs.length === 0){
+    const none = document.createElement('div');
+    none.className = 'no-jobs';
+    none.textContent = 'Not currently assigned to any jobs.';
+    wrap.appendChild(none);
+    return wrap;
+  }
+
+  const countNote = document.createElement('div');
+  countNote.className = 'person-modal-count';
+  countNote.textContent = 'On ' + jobs.length + ' job' + (jobs.length===1?'':'s') + ':';
+  wrap.appendChild(countNote);
+
+  jobs.forEach(job => wrap.appendChild(buildJobListRow(job, false)));
+
+  return wrap;
+}
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeJobModal();
+});
+
+/* ---------- Master render ---------- */
+
+function renderAll(){
+  renderSidebar();
+  renderCalendar();
+  renderDetail();
+  refreshJobFormSuperDropdowns();
+  if(activeTab === 'jobs') renderJobsView();
+  if(activeTab === 'crew') renderCrewTab();
+  if(modalMode) renderJobModal();
+}
+
+initApp();
+</script>
+</body>
+</html>

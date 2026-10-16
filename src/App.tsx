@@ -117,7 +117,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
             </nav>
           </aside>
         )}
-        <main>
+        <main className={route.page === 'crew' ? 'full' : ''}>
           {project && <button className="menu-btn" onClick={() => setNavOpen((o) => !o)}>☰ {project.code} menu</button>}
           {body}
         </main>

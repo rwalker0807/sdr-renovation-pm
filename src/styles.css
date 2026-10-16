@@ -271,3 +271,8 @@ tr.flash td, td.flash, .card.flash { animation: flash 2.4s ease-out; }
 .picker-foot label { display: flex; align-items: center; gap: 6px; }
 .picker-foot input { width: auto; }
 @media (max-width: 900px) { .picker-btn { max-width: 160px; } }
+
+/* Crew scheduler: full-bleed page under the top bar */
+main.full { padding: 0; }
+.crew-frame { display: block; width: 100%; border: 0; background: #14171b;
+  height: calc(100vh - 52px - env(safe-area-inset-top, 0px)); height: calc(100dvh - 52px - env(safe-area-inset-top, 0px)); }
