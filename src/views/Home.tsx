@@ -6,7 +6,6 @@ import { money, moneyShort, pct } from '../lib/format';
 import { ZAPIER_FORMS } from '../lib/config';
 import { Kpi, Meter, PageHead, Pill } from '../components/ui';
 import { JOB_TYPE_LABEL, jobType, type Row } from '../lib/schema';
-import { JobTypeTag } from '../components/ui';
 
 /** Company-wide dashboard: cumulative stats across every project + job intake forms. */
 export function Home({ openProject }: { openProject: (p: Row) => void }) {
@@ -52,8 +51,6 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
   const attention = perProject.flatMap((x) => x.attention)
     .sort((a, b) => (a.tone === b.tone ? 0 : a.tone === 'red' ? -1 : 1));
 
-  const [formId, setFormId] = useState(ZAPIER_FORMS[0]?.id);
-  const form = ZAPIER_FORMS.find((f) => f.id === formId) ?? ZAPIER_FORMS[0];
 
   return (
     <>
@@ -78,99 +75,54 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
         <Kpi title="Open scope gaps" value={sum((x) => x.openGaps)} tone={sum((x) => x.openGaps) ? 'bad' : undefined} sub={`${money(sum((x) => x.gapCost))} exposure`} />
       </div>
 
-      <section className="table-card" style={{ marginBottom: 16 }}>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Job</th><th>Project</th><th>Type</th><th>Status</th><th className="r">Value</th><th className="r">Budget</th>
-                <th className="r">Committed</th><th className="r">Over / under</th><th className="r">Invoiced</th>
-                <th>Onsite</th><th className="r">Bought out</th><th className="r">Open gaps</th>
-              </tr>
-            </thead>
-            <tbody>
-              {perProject.map((x) => (
-                <tr key={x.p.id} onClick={() => openProject(x.p)}>
-                  <td className="mono">{x.p.code}</td>
-                  <td><b>{x.p.name}</b>
-                    <div className="muted small">{x.p.client}
-                      {x.p.encircle_url && <> {x.p.client ? '· ' : ''}<a href={x.p.encircle_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Encircle ↗</a></>}
-                    </div>
-                  </td>
-                  <td><JobTypeTag type={jobType(x.p)} /></td>
-                  <td><Pill value={x.p.status} /></td>
-                  <td className="r num">{money(jobValue(x.p))}</td>
-                  <td className="r num">{money(x.t.revised)}</td>
-                  <td className="r num">{pct((x.t.committed / (x.t.revised || 1)) * 100)}</td>
-                  <td className={`r num ${x.t.variance < 0 ? 'neg' : ''}`}>{money(x.t.variance)}</td>
-                  <td className="r num">{money(x.t.invoiced)}</td>
-                  <td style={{ minWidth: 120 }}><Meter value={x.progress} /> <span className="small muted">{pct(x.progress)}</span></td>
-                  <td className="r num">{pct(x.bo.pct)}</td>
-                  <td className="r num">{x.openGaps}</td>
-                </tr>
-              ))}
-              {!perProject.length && <tr><td colSpan={12} className="empty">No projects yet.</td></tr>}
-            </tbody>
-            {perProject.length > 1 && (
-              <tfoot>
-                <tr>
-                  <td>Total</td><td /><td /><td />
-                  <td className="r">{money(contract)}</td><td className="r">{money(revised)}</td>
-                  <td className="r">{pct((committed / (revised || 1)) * 100)}</td>
-                  <td className={`r ${variance < 0 ? 'neg' : ''}`}>{money(variance)}</td>
-                  <td className="r">{money(invoiced)}</td><td /><td /><td className="r">{sum((x) => x.openGaps)}</td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      </section>
-
-      <div className="grid2">
-        <section className="panel">
-          <div className="panel-head"><h2>Needs attention, all jobs</h2><span className="muted small">{attention.length}</span></div>
-          <ul className="att">
-            {attention.slice(0, 16).map((a) => (
-              <li key={a.table + a.id} onClick={() => openProject(a.project)}>
-                <span className={`dot ${a.tone}`} />
-                <span className="att-kind">{a.project.code}</span>
-                <span><b className="small">{a.kind}:</b> {a.text}</span>
-              </li>
-            ))}
-            {!attention.length && <li className="muted">All clear.</li>}
-          </ul>
+      <div className="home-split">
+        <section className="table-card job-list">
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr><th>Job #</th><th>Project</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {projects.map((p) => (
+                  <tr key={p.id} onClick={() => openProject(p)}>
+                    <td className="mono">{p.code}</td>
+                    <td><b>{p.name}</b></td>
+                    <td><Pill value={p.status} /></td>
+                  </tr>
+                ))}
+                {!projects.length && <tr><td colSpan={3} className="empty">No projects yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </section>
 
-        <section className="panel form-panel">
-          <div className="panel-head">
-            <h2>Job intake</h2>
-            {form?.embed && <a className="small" href={form.url} target="_blank" rel="noreferrer">Open in new tab ↗</a>}
-          </div>
-          {form?.embed && ZAPIER_FORMS.length > 1 && (
-            <div className="seg" style={{ marginBottom: 10 }}>
+        <div className="home-side">
+          <section className="panel">
+            <div className="panel-head"><h2>Job intake</h2></div>
+            <div className="intake-btns">
               {ZAPIER_FORMS.map((f) => (
-                <button key={f.id} className={f.id === form?.id ? 'on' : ''} onClick={() => setFormId(f.id)}>{f.label}</button>
+                <a key={f.id} className="intake-btn" href={f.url} target="_blank" rel="noreferrer">
+                  <span className="intake-btn-title">{f.label}</span>
+                  <span className="intake-btn-sub">{f.description}</span>
+                </a>
               ))}
             </div>
-          )}
-          {form && (
-            <>
-              {form.embed && <p className="hint" style={{ marginBottom: 8 }}>{form.description}</p>}
-              {form.embed ? (
-                <iframe key={form.id} className="zap-frame" src={form.url} title={form.label} loading="lazy" />
-              ) : (
-                <div className="form-cards">
-                  {ZAPIER_FORMS.map((f) => (
-                    <a key={f.id} className="form-card" href={f.url} target="_blank" rel="noreferrer">
-                      <span className="form-card-title">{f.label} ↗</span>
-                      <span className="muted small">{f.description}</span>
-                    </a>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </section>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head"><h2>Needs attention, all jobs</h2><span className="muted small">{attention.length}</span></div>
+            <ul className="att">
+              {attention.slice(0, 16).map((a) => (
+                <li key={a.table + a.id} onClick={() => openProject(a.project)}>
+                  <span className={`dot ${a.tone}`} />
+                  <span className="att-kind">{a.project.code}</span>
+                  <span><b className="small">{a.kind}:</b> {a.text}</span>
+                </li>
+              ))}
+              {!attention.length && <li className="muted">All clear.</li>}
+            </ul>
+          </section>
+        </div>
       </div>
     </>
   );
