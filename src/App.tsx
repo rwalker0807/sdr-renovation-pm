@@ -3,6 +3,7 @@ import { useStore } from './lib/store';
 import { ENTITIES, type Row, type TableName } from './lib/schema';
 import { BudgetView, BuyoutView, Dashboard, GenericView, ProgressView } from './views/views';
 import { CrewSchedule, Home } from './views/Home';
+import { TrelloBoard } from './views/TrelloBoard';
 import { RecordDrawer } from './components/RecordDrawer';
 
 // Sidebar inside a project tab
@@ -21,11 +22,12 @@ const NAV: { key: string; label: string; group: string }[] = [
 ];
 
 // Routes:  #/  (home) · #/crew · #/vendors · #/p/<job code>/<view>
-type Route = { page: 'home' | 'crew' | 'vendors' } | { page: 'project'; code: string; view: string };
+type Route = { page: 'home' | 'crew' | 'vendors' | 'trello' } | { page: 'project'; code: string; view: string };
 function parseHash(): Route {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   if (parts[0] === 'p' && parts[1]) return { page: 'project', code: parts[1], view: parts[2] || 'dashboard' };
   if (parts[0] === 'crew') return { page: 'crew' };
+  if (parts[0] === 'trello') return { page: 'trello' };
   if (parts[0] === 'vendors') return { page: 'vendors' };
   return { page: 'home' };
 }
@@ -68,6 +70,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
   else if (loading && !all.projects.length) body = <div className="muted pad">Loading…</div>;
   else if (route.page === 'home') body = <Home openProject={openProject} />;
   else if (route.page === 'crew') body = <CrewSchedule />;
+  else if (route.page === 'trello') body = <TrelloBoard />;
   else if (route.page === 'vendors') body = <GenericView table="vendors" />;
   else if (!project) body = <div className="panel pad">That project isn’t in the tracker. <a href="#/">Back to all projects</a></div>;
   else switch (pview) {
@@ -93,6 +96,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
           ))}
           <button className="tab-add" onClick={() => setNewProject(true)} title="New project">+</button>
           <span className="tabs-sep" />
+          <a href="#/trello" className={route.page === 'trello' ? 'on' : ''}>Raleigh Board</a>
           <a href="#/crew" className={route.page === 'crew' ? 'on' : ''}>Crew Schedule</a>
           <a href="#/vendors" className={route.page === 'vendors' ? 'on' : ''}>Vendors</a>
         </nav>

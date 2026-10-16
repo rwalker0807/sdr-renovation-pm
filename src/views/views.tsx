@@ -7,6 +7,7 @@ import { DataTable } from '../components/DataTable';
 import { RecordDrawer } from '../components/RecordDrawer';
 import { Kpi, Meter, PageHead, Pill } from '../components/ui';
 import { exportBudget, exportProject } from '../lib/exporter';
+import { TrelloForProject } from './TrelloBoard';
 
 // ---------- drawer helper ----------
 type DrawerState = { table: TableName; row?: Row | null; defaults?: Partial<Row> } | null;
@@ -73,6 +74,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
              sub={`${money(openGaps.reduce((a, g) => a + (Number(g.est_cost) || 0), 0))} exposure`} />
       </div>
 
+      <TrelloForProject code={project?.code} />
       <div className="grid2">
         <section className="panel">
           <div className="panel-head"><h2>Needs attention</h2><span className="muted small">{att.length}</span></div>

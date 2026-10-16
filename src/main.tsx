@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { StoreProvider } from './lib/store';
+import { TrelloProvider } from './lib/trello';
 import { createDemoSource } from './lib/data/demoSource';
 import { createSupabaseSource } from './lib/data/supabaseSource';
 import './styles.css';
@@ -14,7 +15,9 @@ function DemoRoot() {
   const source = useMemo(createDemoSource, []);
   return (
     <StoreProvider source={source}>
-      <App onResetDemo={() => source.reset()} />
+      <TrelloProvider source={source}>
+        <App onResetDemo={() => source.reset()} />
+      </TrelloProvider>
     </StoreProvider>
   );
 }
@@ -57,7 +60,9 @@ function SupabaseRoot() {
   }
   return (
     <StoreProvider source={source}>
-      <App onSignOut={() => source.client.auth.signOut()} />
+      <TrelloProvider source={source}>
+        <App onSignOut={() => source.client.auth.signOut()} />
+      </TrelloProvider>
     </StoreProvider>
   );
 }
