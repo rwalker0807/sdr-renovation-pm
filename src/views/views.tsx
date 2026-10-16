@@ -32,6 +32,36 @@ export function GenericView({ table }: { table: TableName }) {
   );
 }
 
+// ---------- vendors & subs ----------
+/** Vendors list with a trade filter and an "Email these" button that opens a pre-addressed email. */
+export function VendorsView() {
+  const [drawer, open] = useDrawer();
+  const [note, setNote] = useState('');
+  const emailAll = async (shown: Row[]) => {
+    const list = [...new Set(shown.map((r) => String(r.email ?? '').trim()).filter((e) => e.includes('@')))];
+    if (!list.length) { setNote('None of the vendors shown have an email yet.'); return; }
+    const href = `mailto:?bcc=${list.map(encodeURIComponent).join(',')}`;
+    if (href.length < 1900) { window.location.href = href; setNote(`Opened a new email to ${list.length} (Bcc).`); return; }
+    try { await navigator.clipboard.writeText(list.join('; ')); setNote(`${list.length} addresses copied — paste them into Bcc.`); }
+    catch { setNote('Too many addresses for one email link; narrow the filter.'); }
+  };
+  return (
+    <>
+      <PageHead title="Vendors & Subs">
+        <button className="primary" onClick={() => open('vendors')}>+ New vendor</button>
+      </PageHead>
+      {note && <p className="hint">{note}</p>}
+      <DataTable table="vendors" onOpen={(r) => open('vendors', r)}
+        tools={(shown) => (
+          <button onClick={() => emailAll(shown)} title="Start an email (Bcc) to every vendor shown, in your own mail app">
+            ✉ Email {shown.filter((r) => String(r.email ?? '').includes('@')).length}
+          </button>
+        )} />
+      {drawer}
+    </>
+  );
+}
+
 // ---------- dashboard ----------
 export function Dashboard({ go }: { go: (v: string) => void }) {
   const { data, byId, projectId } = useStore();

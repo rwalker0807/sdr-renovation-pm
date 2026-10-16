@@ -9,7 +9,7 @@ export type TableName =
 export type Row = { id: string; [k: string]: any };
 
 export type FieldType =
-  | 'text' | 'textarea' | 'number' | 'money' | 'percent' | 'date' | 'select' | 'ref' | 'bool' | 'url';
+  | 'text' | 'textarea' | 'number' | 'money' | 'percent' | 'date' | 'select' | 'ref' | 'bool' | 'url' | 'email';
 
 export interface Field {
   key: string;
@@ -29,6 +29,9 @@ export interface Entity {
   singular: string;
   projectScoped: boolean;
   statusKey?: string;
+  /** a text field offered as a dropdown filter; values like "Roofing / siding" count under each part */
+  filterKey?: string;
+  filterLabel?: string;
   fields: Field[];
 }
 
@@ -60,12 +63,12 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   vendors: {
-    table: 'vendors', label: 'Vendors & Subs', singular: 'Vendor', projectScoped: false,
+    table: 'vendors', label: 'Vendors & Subs', singular: 'Vendor', projectScoped: false, filterKey: 'trade', filterLabel: 'trades',
     fields: [
       { key: 'name', label: 'Name', type: 'text', required: true },
       { key: 'trade', label: 'Trade', type: 'text' },
       { key: 'contact_name', label: 'Contact', type: 'text' },
-      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'email', label: 'Email', type: 'email' },
       { key: 'phone', label: 'Phone', type: 'text' },
       { key: 'coi_expires', label: 'COI expires', type: 'date' },
       { key: 'license_no', label: 'License #', type: 'text', table: false },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './lib/store';
 import { ENTITIES, type Row, type TableName } from './lib/schema';
-import { BudgetView, BuyoutView, Dashboard, GenericView, ProgressView } from './views/views';
+import { BudgetView, BuyoutView, Dashboard, GenericView, ProgressView, VendorsView } from './views/views';
 import { CrewSchedule, Home } from './views/Home';
 import { TrelloBoard } from './views/TrelloBoard';
 import { RecordDrawer } from './components/RecordDrawer';
@@ -68,7 +68,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
   else if (route.page === 'home') body = <Home openProject={openProject} />;
   else if (route.page === 'crew') body = <CrewSchedule />;
   else if (route.page === 'trello') body = <TrelloBoard />;
-  else if (route.page === 'vendors') body = <GenericView table="vendors" />;
+  else if (route.page === 'vendors') body = <VendorsView />;
   else if (!project) body = <div className="panel pad">That project isn’t in the tracker. <a href="#/">Back to all projects</a></div>;
   else switch (pview) {
     case 'dashboard': body = <Dashboard go={(v) => { location.hash = projectHref(project, v); }} />; break;
