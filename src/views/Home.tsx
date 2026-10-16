@@ -129,9 +129,9 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
         <section className="panel form-panel">
           <div className="panel-head">
             <h2>Job intake</h2>
-            {form && <a className="small" href={form.url} target="_blank" rel="noreferrer">Open in new tab ↗</a>}
+            {form?.embed && <a className="small" href={form.url} target="_blank" rel="noreferrer">Open in new tab ↗</a>}
           </div>
-          {ZAPIER_FORMS.length > 1 && (
+          {form?.embed && ZAPIER_FORMS.length > 1 && (
             <div className="seg" style={{ marginBottom: 10 }}>
               {ZAPIER_FORMS.map((f) => (
                 <button key={f.id} className={f.id === form?.id ? 'on' : ''} onClick={() => setFormId(f.id)}>{f.label}</button>
@@ -140,8 +140,19 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
           )}
           {form && (
             <>
-              <p className="hint" style={{ marginBottom: 8 }}>{form.description}</p>
-              <iframe key={form.id} className="zap-frame" src={form.url} title={form.label} loading="lazy" />
+              {form.embed && <p className="hint" style={{ marginBottom: 8 }}>{form.description}</p>}
+              {form.embed ? (
+                <iframe key={form.id} className="zap-frame" src={form.url} title={form.label} loading="lazy" />
+              ) : (
+                <div className="form-cards">
+                  {ZAPIER_FORMS.map((f) => (
+                    <a key={f.id} className="form-card" href={f.url} target="_blank" rel="noreferrer">
+                      <span className="form-card-title">{f.label} ↗</span>
+                      <span className="muted small">{f.description}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </section>

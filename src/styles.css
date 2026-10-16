@@ -215,3 +215,8 @@ tr.flash td, td.flash, .card.flash { animation: flash 2.4s ease-out; }
   .grid2 { grid-template-columns: 1fr; }
   .bar-row { grid-template-columns: 100px 1fr 70px; }
 }
+
+.form-cards { display: grid; gap: 10px; }
+.form-card { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--text); background: var(--surface-2); }
+.form-card:hover { border-color: var(--accent); }
+.form-card-title { font-weight: 600; color: var(--blue); }
