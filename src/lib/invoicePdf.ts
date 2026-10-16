@@ -14,6 +14,8 @@ export type InvoiceSpec = {
   for_text: string;        // FOR box; wraps to 3 lines
   lines: InvoiceLine[];    // one paragraph each; **bold** runs allowed; amount optional
   notes: string[];         // italic, indented, under the last item
+  kind?: 'invoice' | 'proposal';   // proposal: same template, titled PROPOSAL, with validity + acceptance lines
+  valid_days?: number;     // proposal only (default 30)
 };
 
 const W = 612, H = 792;
@@ -90,19 +92,22 @@ export async function buildInvoicePdf(spec: InvoiceSpec): Promise<InvoiceResult>
     I: await doc.embedFont(a.fonts.I, { subset: true }), BI: await doc.embedFont(a.fonts.BI, { subset: true }),
     HV: await doc.embedFont(a.fonts.HV, { subset: true }),
   };
-  doc.setTitle('Invoice ' + (spec.invoice_no ?? ''));
+  const prop = spec.kind === 'proposal';
+  doc.setTitle((prop ? 'Proposal ' : 'Invoice ') + (spec.invoice_no ?? ''));
   doc.setAuthor('Stone Development & Restoration, LLC');
   const p: PDFPage = doc.addPage([W, H]);
   const text = (s: string, x: number, top: number, font: PDFFont, size = FS) => s && p.drawText(s, { x, y: Y(top), size, font, color: BLACK });
   const centred = (s: string, cx: number, top: number, font: PDFFont, size = FS) => text(s, cx - font.widthOfTextAtSize(s, size) / 2, top, font, size);
   const right = (s: string, rx: number, top: number, font: PDFFont) => text(s, rx - font.widthOfTextAtSize(s, FS), top, font);
+  const right2 = (s: string, rx: number, top: number, font: PDFFont, size: number) => text(s, rx - font.widthOfTextAtSize(s, size), top, font, size);
   const bar = (x0: number, x1: number, top: number, bottom: number, color = BLACK) =>
     p.drawRectangle({ x: x0, y: Y(bottom), width: x1 - x0, height: bottom - top, color, borderWidth: 0 });
 
   // Logo + title
   const logo = await doc.embedJpg(a.logo);
   p.drawImage(logo, { x: 39.7, y: Y(103.6), width: 259.5, height: 66.2 });
-  text('INVOICE', 396.84, 90.6, f.HV, 26.23);
+  if (prop) right2('PROPOSAL', 396.84 + f.HV.widthOfTextAtSize('INVOICE', 26.23), 90.6, f.HV, 26.23);   // same right edge as INVOICE
+  else text('INVOICE', 396.84, 90.6, f.HV, 26.23);
 
   // Company block
   text('Stone Development & Restoration, LLC', 39.84, 112.44, f.B, 10.3);
@@ -112,11 +117,11 @@ export async function buildInvoicePdf(spec: InvoiceSpec): Promise<InvoiceResult>
   text('Fax (910) 686-9747', 140.67, 154.2, f.R);
 
   // Date / invoice #
-  text('DATE:', 301.44, 140.52, f.B); text('INVOICE #', 301.44, 154.2, f.B);
+  text('DATE:', 301.44, 140.52, f.B); text(prop ? 'PROPOSAL #' : 'INVOICE #', 301.44, 154.2, f.B);
   text(spec.date, 366.6, 140.52, f.R); text(spec.invoice_no ?? '', 366.6, 154.2, f.R);
 
   // Bill to
-  text('BILL TO:', X0, 181.56, f.B); text(spec.bill_to ?? '', X0, 195.24, f.R);
+  text(prop ? 'PREPARED FOR:' : 'BILL TO:', X0, 181.56, f.B); text(spec.bill_to ?? '', X0, 195.24, f.R);
   text('ATTN:', X0, 208.92, f.B); text(spec.attn ?? '', X0, 221.76, f.R);
 
   // For box
@@ -170,12 +175,22 @@ export async function buildInvoicePdf(spec: InvoiceSpec): Promise<InvoiceResult>
   amt(611.64, total);
 
   // Footer
-  const s1 = 'Please make checks payable to ', s2 = 'Stone Development & Restoration LLC';
-  text(s1, X0, 649.56, f.R);
-  let x = X0 + f.R.widthOfTextAtSize(s1, FS);
-  text(s2, x, 649.56, f.B); x += f.B.widthOfTextAtSize(s2, FS);
-  text('*', x, 649.56, f.R);
-  centred('THANK YOU FOR YOUR BUSINESS!', 282.25, 698.89, f.B, 9.36);
+  if (prop) {
+    const days = spec.valid_days && spec.valid_days > 0 ? Math.round(spec.valid_days) : 30;
+    text(`This proposal is valid for ${days} days from the date above. To accept, sign below and return a copy to `, X0, 649.56, f.R);
+    text('Stone Development & Restoration LLC.', X0, 662.4, f.B);
+    text('Accepted by:', X0, 694.0, f.B); bar(100, 300, 694.6, 695.4);
+    text('Date:', 318, 694.0, f.B); bar(345, 450, 694.6, 695.4);
+    text('Printed name / title:', X0, 716.0, f.B); bar(135, 300, 716.6, 717.4);
+    centred('THANK YOU FOR THE OPPORTUNITY!', 282.25, 748.0, f.B, 9.36);
+  } else {
+    const s1 = 'Please make checks payable to ', s2 = 'Stone Development & Restoration LLC';
+    text(s1, X0, 649.56, f.R);
+    let x = X0 + f.R.widthOfTextAtSize(s1, FS);
+    text(s2, x, 649.56, f.B); x += f.B.widthOfTextAtSize(s2, FS);
+    text('*', x, 649.56, f.R);
+    centred('THANK YOU FOR YOUR BUSINESS!', 282.25, 698.89, f.B, 9.36);
+  }
 
   return { bytes: await doc.save(), total, descEnd: base };
 }

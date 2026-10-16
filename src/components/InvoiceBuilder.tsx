@@ -11,23 +11,31 @@ const NOTE_PRESETS = [
   'See attached EMS billing report, Xactimate, and completion report for details',
   'See attached EMS Billing Report for details',
 ];
+const PROPOSAL_NOTES = [
+  'Price includes all labor, materials, equipment, supervision and protection',
+  'Excludes permit fees, unforeseen or concealed conditions, and work not listed above',
+];
 const isoToday = () => new Date().toLocaleDateString('en-CA');
 const fromIso = (d: string) => new Date(d + 'T12:00');
 
-/** SDR client invoice: fill in the fields, see the PDF update live, download it or save it to the job's Files. */
-export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: () => void }) {
+/** SDR client invoice or proposal (same template): fill in the fields, see the PDF update live, download it or save it to the job's Files. */
+export function InvoiceBuilder({ project, onClose, kind = 'invoice' }: { project?: Row; onClose: () => void; kind?: 'invoice' | 'proposal' }) {
+  const prop = kind === 'proposal';
+  const Doc = prop ? 'Proposal' : 'Invoice';
+  const numFor = (d: string) => (prop ? 'P' : '') + invoiceNumber(fromIso(d), job);
   const { save } = useStore();
   const client = useFilesClient();
   const job = project?.code ?? '';
   const [date, setDate] = useState(isoToday());
-  const [invNo, setInvNo] = useState(invoiceNumber(fromIso(isoToday()), job));
+  const [invNo, setInvNo] = useState(() => numFor(isoToday()));
   const [invTouched, setInvTouched] = useState(false);
   // invoice BILL TO line = the job's Client; ATTN line = the job's Bill To (Trello "Invoice To")
   const [billTo, setBillTo] = useState<string>(project?.client || '');
   const [attn, setAttn] = useState<string>(project?.billed_to || '');
   const [forText, setForText] = useState(project ? `${job ? `#${job} ` : ''}${project.name ?? ''}`.trim() : '');
   const [lines, setLines] = useState<{ desc: string; amount: string }[]>([{ desc: '', amount: '' }]);
-  const [note, setNote] = useState(NOTE_PRESETS[0]);
+  const [note, setNote] = useState(prop ? '' : NOTE_PRESETS[0]);
+  const [validDays, setValidDays] = useState('30');
   const [url, setUrl] = useState<string | null>(null);
   const [pdf, setPdf] = useState<{ bytes: Uint8Array; total: number; descEnd: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -35,7 +43,8 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
   const [busy, setBusy] = useState(false);
   const urlRef = useRef<string | null>(null);
 
-  useEffect(() => { if (!invTouched) setInvNo(invoiceNumber(fromIso(date), job)); }, [date, job, invTouched]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!invTouched) setInvNo(numFor(date)); }, [date, job, invTouched]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
@@ -50,8 +59,8 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
   const badAmount = lines.some((l, i) => l.amount.trim() !== '' && parsed[i].amount == null);
   const spec = useMemo(() => ({
     date: longDate(fromIso(date)), invoice_no: invNo.trim(), bill_to: billTo.trim(), attn: attn.trim(), for_text: forText.trim(),
-    lines: parsed, notes: note.trim() ? [note.trim()] : [],
-  }), [date, invNo, billTo, attn, forText, parsed, note]);
+    lines: parsed, notes: note.trim() ? [note.trim()] : [], kind, valid_days: Number(validDays) || 30,
+  }), [date, invNo, billTo, attn, forText, parsed, note, kind, validDays]);
 
   // rebuild the preview shortly after typing stops
   useEffect(() => {
@@ -70,9 +79,9 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
   useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
 
   const overflow = !!pdf && pdf.descEnd > DESC_LIMIT;
-  const fileName = `${[project?.name, 'Invoice', invNo].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '-')}.pdf`;
+  const fileName = `${[project?.name, Doc, invNo].filter(Boolean).join(' ').replace(/[\\/:*?"<>|]+/g, '-')}.pdf`;
   const ready = !!pdf && !overflow && !badAmount && !!billTo.trim() && parsed.some((l) => l.desc);
-  const why = !billTo.trim() ? 'Add who it’s billed to.' : !parsed.some((l) => l.desc) ? 'Add at least one line item.'
+  const why = !billTo.trim() ? (prop ? 'Add who it’s prepared for.' : 'Add who it’s billed to.') : !parsed.some((l) => l.desc) ? 'Add at least one line item.'
     : badAmount ? 'One of the amounts isn’t a number.' : overflow ? 'Too much text for one page; shorten the line items.' : '';
 
   const download = () => {
@@ -86,7 +95,7 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
     if (!pdf || !client || !project) return;
     setBusy(true); setErr(null);
     try {
-      await uploadFile(client, save, { project_id: project.id, folder: 'Client invoice' }, new File([pdf.bytes as BlobPart], fileName, { type: 'application/pdf' }));
+      await uploadFile(client, save, { project_id: project.id, folder: prop ? 'Proposal / estimate' : 'Client invoice' }, new File([pdf.bytes as BlobPart], fileName, { type: 'application/pdf' }));
       setSaved(fileName);
     } catch (e: any) { setErr(e.message ?? String(e)); }
     finally { setBusy(false); }
@@ -98,24 +107,24 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
     <div className="drawer-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="drawer invoice-drawer">
         <div className="drawer-head">
-          <h2>Create invoice{job ? ` · ${job}` : ''}</h2>
+          <h2>Create {Doc.toLowerCase()}{job ? ` · ${job}` : ''}</h2>
           <button type="button" className="ghost" onClick={onClose} aria-label="Close">✕</button>
         </div>
         <div className="inv-body">
           <form className="inv-form" onSubmit={(e) => e.preventDefault()}>
             <div className="inv-row">
               <label className="field"><span>Date</span><input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></label>
-              <label className="field"><span>Invoice #</span>
+              <label className="field"><span>{Doc} #</span>
                 <input value={invNo} onChange={(e) => { setInvNo(e.target.value); setInvTouched(true); }} />
               </label>
             </div>
             <div className="inv-row">
-              <label className="field"><span>Bill to *</span>
+              <label className="field"><span>{prop ? 'Prepared for *' : 'Bill to *'}</span>
                 <input list="inv-clients" value={billTo} onChange={(e) => setBillTo(e.target.value)} placeholder="Related, Venture, Grubb…" />
                 <datalist id="inv-clients">{[...new Set([project?.client, ...CLIENTS].filter(Boolean))].map((c) => <option key={c} value={c} />)}</datalist>
                 <span className="muted small">The job’s client</span>
               </label>
-              <label className="field"><span>ATTN</span><input value={attn} onChange={(e) => setAttn(e.target.value)} placeholder="Who the invoice goes to" />
+              <label className="field"><span>ATTN</span><input value={attn} onChange={(e) => setAttn(e.target.value)} placeholder={`Who the ${Doc.toLowerCase()} goes to`} />
                 <span className="muted small">The job’s “Bill to”</span></label>
             </div>
             <label className="field"><span>For</span>
@@ -128,7 +137,7 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
               {lines.map((l, i) => (
                 <div key={i} className="inv-line">
                   <textarea rows={2} value={l.desc} onChange={(e) => setLine(i, 'desc', e.target.value)}
-                    placeholder={i === 0 ? 'Water loss repairs completed through **10/14/2026** at Link Caylx unit 302.' : 'Another line item'} aria-label={`Line ${i + 1} description`} />
+                    placeholder={i === 0 ? (prop ? 'Remove and replace damaged drywall in unit 302 bathroom ceiling, prime and paint to match.' : 'Water loss repairs completed through **10/14/2026** at Link Caylx unit 302.') : 'Another line item'} aria-label={`Line ${i + 1} description`} />
                   <span className="inv-amt"><span>$</span>
                     <input inputMode="decimal" value={l.amount} onChange={(e) => setLine(i, 'amount', e.target.value)} placeholder="0.00"
                       className={l.amount.trim() && parsed[i].amount == null ? 'bad' : ''} aria-label={`Line ${i + 1} amount`}
@@ -145,10 +154,15 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
               <p className="muted small">Wrap a date in **double stars** to print it bold. Lines without an amount print as scope text only.</p>
             </div>
 
-            <label className="field"><span>Note (italic, under the last line item)</span>
+            <label className="field"><span>Note (italic, under the last line item{prop ? ', optional' : ''})</span>
               <input list="inv-notes" value={note} onChange={(e) => setNote(e.target.value)} />
-              <datalist id="inv-notes">{NOTE_PRESETS.map((n) => <option key={n} value={n} />)}</datalist>
+              <datalist id="inv-notes">{(prop ? PROPOSAL_NOTES : NOTE_PRESETS).map((n) => <option key={n} value={n} />)}</datalist>
             </label>
+            {prop && (
+              <label className="field" style={{ maxWidth: 220 }}><span>Valid for (days)</span>
+                <input type="number" min={1} value={validDays} onChange={(e) => setValidDays(e.target.value)} />
+              </label>
+            )}
           </form>
 
           <div className="inv-preview">
@@ -156,7 +170,7 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
               <span>Preview{pdf ? ` · total $${money(pdf.total)}` : ''}</span>
               {url && <a href={url} target="_blank" rel="noreferrer">Open preview in new tab ↗</a>}
             </div>
-            {url ? <iframe title="Invoice preview" src={`${url}#toolbar=0&navpanes=0&view=FitH`} /> : <div className="muted pad">Building preview…</div>}
+            {url ? <iframe title={`${Doc} preview`} src={`${url}#toolbar=0&navpanes=0&view=FitH`} /> : <div className="muted pad">Building preview…</div>}
           </div>
         </div>
         <div className="drawer-foot">

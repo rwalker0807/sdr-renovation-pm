@@ -132,7 +132,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
   const bo = buyoutSummary(data);
   const prog = overallProgress(data);
   const att = useMemo(() => attentionItems(data, byId), [data, byId]);
-  const [invoicing, setInvoicing] = useState(false);
+  const [invoicing, setInvoicing] = useState<null | 'invoice' | 'proposal'>(null);
   const openGaps = data.scope_gaps.filter((g) => g.status !== 'resolved');
 
   // division rollup for the bar list
@@ -152,12 +152,13 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
       <PageHead title={project ? project.name : 'Dashboard'}>
         {project && <span className="muted small"><JobTypeTag type={jt} /> {project.code}{project.address ? ` · ${project.address}` : ''} · <Pill value={project.status} /></span>}
         {project?.encircle_url && <a className="btn-link" href={project.encircle_url} target="_blank" rel="noreferrer" title="Open this job's Encircle claim">Encircle ↗</a>}
-        {project && <button className="primary" onClick={() => setInvoicing(true)}>🧾 Create invoice</button>}
+        {project && <button className="primary" onClick={() => setInvoicing('invoice')}>🧾 Create invoice</button>}
+        {project && <button className="primary" onClick={() => setInvoicing('proposal')}>📝 Create proposal</button>}
         {project && <button onClick={() => open('projects', project)}>✎ Edit job</button>}
         <button onClick={() => exportProject(project, data, byId)} title="Every tracker for this project in one Excel workbook">⤓ Project workbook</button>
       </PageHead>
       {invoicing && project && (
-        <Suspense fallback={null}><InvoiceBuilder project={project} onClose={() => setInvoicing(false)} /></Suspense>
+        <Suspense fallback={null}><InvoiceBuilder key={invoicing} kind={invoicing} project={project} onClose={() => setInvoicing(null)} /></Suspense>
       )}
 
       {jt !== 'renovation' && project ? (
