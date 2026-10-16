@@ -68,8 +68,16 @@ export function ClientProperties() {
   const sync = async () => {
     setSyncing(true); setMsg(null);
     try {
-      const { data, error } = await client.functions.invoke('trello', { body: { action: 'sync_properties' } });
-      if (error) throw new Error((await error.context?.json?.())?.error ?? error.message);
+      let data: any;
+      // the first sync looks up a batch of addresses per run; keep going until every pin is placed
+      for (let run = 0; run < 12; run++) {
+        const r = await client.functions.invoke('trello', { body: { action: 'sync_properties' } });
+        if (r.error) throw new Error((await r.error.context?.json?.())?.error ?? r.error.message);
+        data = r.data;
+        await load();
+        if (!data.pending) break;
+        setMsg({ tone: 'ok', text: `Placing pins… ${data.cards - data.pending} of ${data.cards} done.` });
+      }
       setMsg({ tone: 'ok', text: `Synced ${data.cards} properties from Trello · ${data.pinned} on the map${data.cards - data.pinned ? `, ${data.cards - data.pinned} without a findable address` : ''}.` });
       await load();
     } catch (e: any) { setMsg({ tone: 'err', text: e.message ?? String(e) }); }

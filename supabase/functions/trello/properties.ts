@@ -27,6 +27,7 @@ export function parseDescription(desc: string | null) {
   return { fields, address: get(/^address$/i), client: get(/^client$/i) ?? clientLine };
 }
 
+export const coordsOf = (c: any) => coords(c);
 function coords(c: any): { lat: number; lng: number } | null {
   const v = c.coordinates;
   if (!v) return null;
@@ -86,13 +87,15 @@ function baseRow(c: any) {
 }
 
 /** Work out lat/lng for a card, reusing the previous lookup when the address hasn't changed. */
-async function withLocation(c: any, row: ReturnType<typeof baseRow>, prev: any, allowNominatim: boolean) {
+async function withLocation(c: any, row: ReturnType<typeof baseRow>, prev: any, allowNominatim: boolean, allowLookup = true) {
   const pin = coords(c);
   if (pin) return { ...row, ...pin, geo_source: 'trello', geo_address: row.address };
   if (!row.address) return { ...row, lat: null, lng: null, geo_source: null, geo_address: null };
   if (prev && prev.geo_address === row.address && prev.lat != null && prev.geo_source !== 'trello') {
     return { ...row, lat: prev.lat, lng: prev.lng, geo_source: prev.geo_source, geo_address: prev.geo_address };
   }
+  if (!allowLookup) // over this run's lookup budget: keep any old pin, look it up on the next run
+    return { ...row, lat: prev?.lat ?? null, lng: prev?.lng ?? null, geo_source: prev?.lat != null ? prev.geo_source : null, geo_address: null };
   const g = await geocode(row.address, allowNominatim);
   return g ? { ...row, ...g, geo_source: 'census', geo_address: row.address }
            : { ...row, lat: null, lng: null, geo_source: null, geo_address: row.address };
@@ -136,10 +139,17 @@ export async function syncProperties(trello: TrelloFn, admin: any) {
   const { data: held } = await admin.from('client_properties').select('id,lat,lng,geo_source,geo_address,closed');
   const prevById = new Map((held ?? []).map((r: any) => [r.id, r]));
   let nominatimLeft = 20; // Nominatim allows ~1 request/second; keep fallbacks to a handful per sync
-  const rows = await pool(cards, 6, async (c: any) => {
+  let lookupsLeft = 150;  // keep each run well inside the function time limit; the page re-runs until done
+  let pending = 0;
+  const rows = await pool(cards, 8, async (c: any) => {
+    const base = baseRow(c);
+    const prev: any = prevById.get(c.id);
+    const needsLookup = !coordsOf(c) && !!base.address && !(prev && prev.geo_address === base.address && prev.lat != null);
+    const allowLookup = !needsLookup || lookupsLeft-- > 0;
+    if (!allowLookup) pending++;
     const allow = nominatimLeft > 0;
-    const r = await withLocation(c, baseRow(c), prevById.get(c.id), allow);
-    if (allow && r.geo_source === null && r.address) nominatimLeft--;
+    const r = await withLocation(c, base, prev, allow, allowLookup);
+    if (allow && allowLookup && needsLookup && r.lat == null) nominatimLeft--;
     return r;
   });
   for (let i = 0; i < rows.length; i += 200) {
@@ -150,7 +160,7 @@ export async function syncProperties(trello: TrelloFn, admin: any) {
   const gone = (held ?? []).filter((r: any) => !r.closed && !open.has(r.id)).map((r: any) => r.id);
   if (gone.length) await admin.from('client_properties').update({ closed: true }).in('id', gone);
   return {
-    lists: nLists, cards: rows.length, closed: gone.length,
+    lists: nLists, cards: rows.length, closed: gone.length, pending,
     pinned: rows.filter((r) => r.lat != null).length,
     from_trello: rows.filter((r) => r.geo_source === 'trello').length,
     unplaced: rows.filter((r) => r.lat == null).map((r) => r.name).slice(0, 50),
