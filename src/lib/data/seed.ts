@@ -27,7 +27,7 @@ export function buildSeed(): Record<TableName, Row[]> {
   n = 0; s = 42;
   const db: Record<TableName, Row[]> = {
     projects: [], vendors: [], budget_lines: [], buyout_packages: [], commitments: [],
-    change_orders: [], material_buys: [], invoices: [], progress: [], scope_gaps: [], specs: [], scopes: [],
+    change_orders: [], material_buys: [], invoices: [], progress: [], scope_gaps: [], specs: [], scopes: [], project_vendors: [],
   };
 
   const P1 = uid(), P2 = uid();

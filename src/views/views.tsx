@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ENTITIES, STATUS_OPTIONS, refLabel, type Row, type TableName } from '../lib/schema';
+import { ENTITIES, JOB_TYPE_LABEL, STATUS_OPTIONS, jobType, refLabel, type Row, type TableName } from '../lib/schema';
 import { useStore } from '../lib/store';
 import { attentionItems, budgetRollup, buyoutSummary, overallProgress, totals } from '../lib/rollups';
 import { date, money, moneyShort, pct } from '../lib/format';
@@ -8,6 +8,8 @@ import { RecordDrawer } from '../components/RecordDrawer';
 import { Kpi, Meter, PageHead, Pill } from '../components/ui';
 import { exportBudget, exportProject } from '../lib/exporter';
 import { TrelloForProject } from './TrelloBoard';
+import { ProjectVendorsPanel } from './ProjectVendors';
+import { JobTypeTag } from '../components/ui';
 
 // ---------- drawer helper ----------
 type DrawerState = { table: TableName; row?: Row | null; defaults?: Partial<Row> } | null;
@@ -29,6 +31,60 @@ export function GenericView({ table }: { table: TableName }) {
       <DataTable table={table} onOpen={(r) => open(table, r)} />
       {drawer}
     </>
+  );
+}
+
+// ---------- water/fire loss + GC job summaries ----------
+function JobKpis({ project: p, invoiced, paid, committed, vendorTotal }:
+  { project: Row; invoiced: number; paid: number; committed: number; vendorTotal: number }) {
+  const m = (v: unknown) => (v == null || v === '' ? '—' : money(v as number));
+  const cost = Math.max(committed, vendorTotal);
+  if (jobType(p) === 'loss') {
+    const total = (Number(p.ems_amount) || 0) + (Number(p.rebuild_amount) || 0);
+    return (
+      <div className="kpis">
+        <Kpi title="Xactimate" value={m(p.xactimate_amount)} sub={p.claim_number ? `Claim ${p.claim_number}` : 'Estimate total'} />
+        <Kpi title="EMS" value={m(p.ems_amount)} sub="Emergency mitigation" />
+        <Kpi title="Rebuild" value={m(p.rebuild_amount)} sub={total ? `EMS + rebuild ${moneyShort(total)}` : ''} />
+        <Kpi title="Vendor cost" value={money(cost)} sub={`${moneyShort(vendorTotal)} assigned · ${moneyShort(committed)} committed`} />
+        <Kpi title="Vendor invoices" value={moneyShort(invoiced)} sub={`${moneyShort(paid)} paid`} />
+      </div>
+    );
+  }
+  const value = Number(p.invoice_amount) || Number(p.contract_value) || 0;
+  return (
+    <div className="kpis">
+      <Kpi title="Invoice amount" value={m(p.invoice_amount)} sub={p.invoiced_date ? `Invoiced ${date(p.invoiced_date)}` : 'Not invoiced yet'} />
+      <Kpi title="Contract value" value={m(p.contract_value)} sub={p.po_number ? `PO ${p.po_number}` : ''} />
+      <Kpi title="Vendor cost" value={money(cost)} sub={`${moneyShort(vendorTotal)} assigned · ${moneyShort(committed)} committed`} />
+      <Kpi title="Margin" value={value ? money(value - cost) : '—'} tone={value && value - cost < 0 ? 'bad' : undefined} sub={value ? pct(((value - cost) / value) * 100) : ''} />
+      <Kpi title="Vendor invoices" value={moneyShort(invoiced)} sub={`${moneyShort(paid)} paid`} />
+    </div>
+  );
+}
+
+function JobDetails({ project: p, onEdit }: { project: Row; onEdit: () => void }) {
+  const loss = jobType(p) === 'loss';
+  const rows: [string, React.ReactNode][] = [
+    ['Job type', JOB_TYPE_LABEL[jobType(p)]],
+    ['Client', p.client], ['Billed to', p.billed_to], ['Address', p.address],
+    ...(loss ? [
+      ['Loss type', p.loss_type ? String(p.loss_type).replace(/^./, (c: string) => c.toUpperCase()) : null],
+      ['Date of loss', p.loss_date ? date(p.loss_date) : null], ['Claim #', p.claim_number], ['Carrier / adjuster', p.carrier],
+      ['Encircle', p.encircle_url ? <a href={p.encircle_url} target="_blank" rel="noreferrer">Open claim ↗</a> : null],
+    ] as [string, React.ReactNode][] : [
+      ['PO / work order #', p.po_number], ['Invoiced on', p.invoiced_date ? date(p.invoiced_date) : null],
+    ] as [string, React.ReactNode][]),
+    ['Start', p.start_date ? date(p.start_date) : null], ['Target completion', p.target_completion ? date(p.target_completion) : null],
+  ];
+  return (
+    <section className="panel">
+      <div className="panel-head"><h2>Job details</h2><button className="link small" onClick={onEdit}>Edit →</button></div>
+      <dl className="details">
+        {rows.filter(([, v]) => v != null && v !== '').map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+      </dl>
+      {!loss && p.scope_description && <><h3 className="small muted" style={{ margin: '12px 0 4px' }}>SCOPE</h3><p className="pre">{p.scope_description}</p></>}
+    </section>
   );
 }
 
@@ -67,6 +123,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
   const { data, byId, projectId } = useStore();
   const [drawer, open] = useDrawer();
   const project = byId('projects', projectId);
+  const jt = jobType(project);
   const roll = useMemo(() => budgetRollup(data), [data]);
   const t = totals(roll);
   const bo = buyoutSummary(data);
@@ -89,10 +146,32 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
   return (
     <>
       <PageHead title={project ? project.name : 'Dashboard'}>
-        {project && <span className="muted small">{project.code} · {project.address} · <Pill value={project.status} /></span>}
+        {project && <span className="muted small"><JobTypeTag type={jt} /> {project.code}{project.address ? ` · ${project.address}` : ''} · <Pill value={project.status} /></span>}
+        {project && <button onClick={() => open('projects', project)}>✎ Edit job</button>}
         <button onClick={() => exportProject(project, data, byId)} title="Every tracker for this project in one Excel workbook">⤓ Project workbook</button>
       </PageHead>
 
+      {jt !== 'renovation' && project ? (
+        <>
+          <JobKpis project={project} invoiced={t.invoiced} paid={t.paid} committed={t.committed} vendorTotal={data.project_vendors.reduce((a, r) => a + (Number(r.amount) || 0), 0)} />
+          <TrelloForProject code={project.code} />
+          <div className="grid2">
+            <JobDetails project={project} onEdit={() => open('projects', project)} />
+            <ProjectVendorsPanel go={() => go('project_vendors')} />
+          </div>
+          <section className="panel" style={{ marginTop: 16 }}>
+            <div className="panel-head"><h2>Needs attention</h2><span className="muted small">{att.length}</span></div>
+            <ul className="att">
+              {att.slice(0, 14).map((a) => (
+                <li key={a.table + a.id} onClick={() => open(a.table, byId(a.table, a.id))}>
+                  <span className={`dot ${a.tone}`} /><span className="att-kind">{a.kind}</span><span>{a.text}</span>
+                </li>
+              ))}
+              {!att.length && <li className="muted">All clear.</li>}
+            </ul>
+          </section>
+        </>
+      ) : (<>
       <div className="kpis">
         <Kpi title="Contract value" value={money(project?.contract_value)} sub={`Revised budget ${moneyShort(t.revised)}`} />
         <Kpi title="Committed" value={moneyShort(t.committed)} sub={<><Meter value={t.committed} max={t.revised} /> {pct((t.committed / (t.revised || 1)) * 100)} of budget</>} />
@@ -134,6 +213,10 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
           <div className="legend small muted"><span className="sw committed" /> committed vs revised budget · right column = projected over/under</div>
         </section>
       </div>
+      <div className="grid2" style={{ marginTop: 16 }}>
+        <ProjectVendorsPanel go={() => go('project_vendors')} />
+      </div>
+      </>)}
       {drawer}
     </>
   );

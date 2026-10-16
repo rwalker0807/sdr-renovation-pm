@@ -38,17 +38,59 @@ async function trello(method: string, path: string, params: Record<string, unkno
 }
 
 const CARD_FIELDS = 'name,idList,idBoard,labels,due,dueComplete,desc,closed,pos,shortUrl,dateLastActivity';
-const jobCode = (name: string) => name.match(/#\s*(\d{2}-\d{3,4})/)?.[1] ?? name.match(/\b(\d{2}-\d{3})\b/)?.[1] ?? null;
-const cardRow = (c: any) => ({
-  id: c.id, board_id: c.idBoard, list_id: c.idList, name: c.name, job_code: jobCode(c.name),
-  labels: (c.labels ?? []).map((l: any) => ({ id: l.id, name: l.name, color: l.color })),
-  due: c.due, due_complete: !!c.dueComplete, description: c.desc ?? null, closed: !!c.closed,
-  pos: c.pos, short_url: c.shortUrl, last_activity: c.dateLastActivity,
-});
+// Job numbers: 26-327, and loss-job codes like D6813, D6813-1, V6649
+const jobCode = (name: string) =>
+  name.match(/#\s*(\d{2}-\d{3,4}(?:-\d+)?)/)?.[1] ??
+  name.match(/#\s*([A-Za-z]\d{3,5}(?:-\d+)?)/)?.[1] ??
+  name.match(/\b(\d{2}-\d{3})\b/)?.[1] ?? null;
+
+// Board custom field definitions (id -> {name, options}); cached per function instance, refreshed on change
+let fieldDefs: Map<string, { name: string; options: Map<string, string> }> | null = null;
+async function customFieldDefs(force = false) {
+  if (fieldDefs && !force) return fieldDefs;
+  const defs = await trello('GET', `/boards/${BOARD}/customFields`);
+  fieldDefs = new Map(defs.map((d: any) => [d.id, {
+    name: String(d.name ?? '').trim(),
+    options: new Map((d.options ?? []).map((o: any) => [o.id, o.value?.text ?? ''])),
+  }]));
+  return fieldDefs;
+}
+const norm = (n: string) => n.toLowerCase().replace(/[^a-z]/g, '');
+function customValues(c: any, defs: NonNullable<typeof fieldDefs>) {
+  const out: Record<string, string> = {};
+  for (const item of c.customFieldItems ?? []) {
+    const d = defs.get(item.idCustomField);
+    if (!d) continue;
+    const v = item.value ?? {};
+    const val = item.idValue ? d.options.get(item.idValue) ?? ''
+      : v.text ?? v.number ?? v.date ?? (v.checked != null ? String(v.checked === 'true') : '');
+    if (val !== '' && val != null) out[d.name] = String(val);
+  }
+  return out;
+}
+const pick = (cf: Record<string, string>, ...names: string[]) => {
+  const want = names.map(norm);
+  const k = Object.keys(cf).find((n) => want.includes(norm(n)));
+  return k ? cf[k] : null;
+};
+const cardRow = (c: any, defs: NonNullable<typeof fieldDefs>) => {
+  const cf = customValues(c, defs);
+  return {
+    id: c.id, board_id: c.idBoard, list_id: c.idList, name: c.name, job_code: jobCode(c.name),
+    labels: (c.labels ?? []).map((l: any) => ({ id: l.id, name: l.name, color: l.color })),
+    due: c.due, due_complete: !!c.dueComplete, description: c.desc ?? null, closed: !!c.closed,
+    pos: c.pos, short_url: c.shortUrl, last_activity: c.dateLastActivity,
+    client: pick(cf, 'Client'),
+    invoice_to: pick(cf, 'Invoice To', 'Invoice To:', 'Billed To', 'Bill To'),
+    claim_id: pick(cf, 'Claim Identifier', 'Claim', 'Claim #', 'Claim Number'),
+    encircle_url: pick(cf, 'Encircle link', 'Encircle'),
+    custom_fields: cf,
+  };
+};
 
 async function refreshCard(id: string) {
   let c: any;
-  try { c = await trello('GET', `/cards/${id}`, { fields: CARD_FIELDS }); }
+  try { c = await trello('GET', `/cards/${id}`, { fields: CARD_FIELDS, customFieldItems: true }); }
   catch (e) {
     if (String(e).includes('-> 404')) { await admin.from('trello_cards').update({ closed: true }).eq('id', id); return null; }
     throw e;
@@ -57,7 +99,7 @@ async function refreshCard(id: string) {
     await admin.from('trello_cards').update({ closed: true }).eq('id', id);
     return null;
   }
-  const row = cardRow(c);
+  const row = cardRow(c, await customFieldDefs());
   const { error } = await admin.from('trello_cards').upsert(row);
   if (error) throw error;
   return row;
@@ -80,8 +122,9 @@ async function syncLabels() {
 async function syncAll() {
   const nLists = await syncLists();
   const nLabels = await syncLabels();
-  const cards = await trello('GET', `/boards/${BOARD}/cards/open`, { fields: CARD_FIELDS });
-  const rows = cards.map(cardRow);
+  const defs = await customFieldDefs(true);
+  const cards = await trello('GET', `/boards/${BOARD}/cards/open`, { fields: CARD_FIELDS, customFieldItems: true });
+  const rows = cards.map((c: any) => cardRow(c, defs));
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await admin.from('trello_cards').upsert(rows.slice(i, i + 200));
     if (error) throw error;
@@ -132,7 +175,8 @@ Deno.serve(async (req) => {
       const evt = JSON.parse(body);
       const type: string = evt.action?.type ?? '';
       const d = evt.action?.data ?? {};
-      if (/List/.test(type) && !d.card) await syncLists();
+      if (/CustomField$/.test(type)) await customFieldDefs(true); // field added/renamed on the board
+      else if (/List/.test(type) && !d.card) await syncLists();
       else if (/Label/.test(type) && !d.card) await syncLabels();
       else if (type === 'deleteCard' && d.card?.id) await admin.from('trello_cards').update({ closed: true }).eq('id', d.card.id);
       else if (d.card?.id) await refreshCard(d.card.id);

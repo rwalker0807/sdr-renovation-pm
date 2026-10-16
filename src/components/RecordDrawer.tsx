@@ -11,6 +11,8 @@ export function RecordDrawer({ table, row, defaults, onClose }:
   const [form, setForm] = useState<Partial<Row>>(row ?? defaults ?? {});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState('');
 
   useEffect(() => { setForm(row ?? defaults ?? {}); }, [row, defaults]);
   useEffect(() => {
@@ -23,7 +25,7 @@ export function RecordDrawer({ table, row, defaults, onClose }:
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const missing = ent.fields.filter((f) => f.required && (form[f.key] == null || form[f.key] === ''));
+    const missing = ent.fields.filter((f) => f.required && (!f.showIf || f.showIf(form)) && (form[f.key] == null || form[f.key] === ''));
     if (missing.length) { setErr(`Required: ${missing.map((m) => m.label).join(', ')}`); return; }
     setBusy(true); setErr(null);
     try { await save(table, form); onClose(); }
@@ -34,7 +36,11 @@ export function RecordDrawer({ table, row, defaults, onClose }:
   const del = async () => {
     if (!row?.id) return;
     setBusy(true);
-    try { await remove(table, row.id); onClose(); }
+    try {
+      await remove(table, row.id);
+      onClose();
+      if (table === 'projects') location.hash = '#/';
+    }
     catch (x: any) { setErr(x?.message ?? String(x)); setBusy(false); }
   };
 
@@ -46,7 +52,7 @@ export function RecordDrawer({ table, row, defaults, onClose }:
           <button type="button" className="ghost" onClick={onClose} aria-label="Close">✕</button>
         </div>
         <div className="drawer-body">
-          {ent.fields.filter((f) => !f.computed).map((f) => {
+          {ent.fields.filter((f) => !f.computed && (!f.showIf || f.showIf(form))).map((f) => {
             const v = form[f.key];
             let input;
             switch (f.type) {
@@ -56,7 +62,7 @@ export function RecordDrawer({ table, row, defaults, onClose }:
                 input = (
                   <select value={v ?? ''} onChange={(e) => set(f.key, e.target.value || null)}>
                     <option value="">—</option>
-                    {f.options!.map((o) => <option key={o} value={o}>{label(o)}</option>)}
+                    {f.options!.map((o) => <option key={o} value={o}>{f.optionLabels?.[o] ?? label(o)}</option>)}
                   </select>
                 ); break;
               case 'ref':
@@ -76,16 +82,46 @@ export function RecordDrawer({ table, row, defaults, onClose }:
                 input = <input type={f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : 'text'} value={v ?? ''} onChange={(e) => set(f.key, e.target.value)} />;
             }
             return (
-              <label key={f.key} className={`field ${f.type === 'bool' ? 'field-inline' : ''}`}>
-                <span>{f.label}{f.required && ' *'}</span>
-                {input}
-              </label>
+              <div key={f.key} style={{ display: 'contents' }}>
+                {f.section && <h3 className="drawer-section">{f.section}</h3>}
+                <label className={`field ${f.type === 'bool' ? 'field-inline' : ''}`}>
+                  <span>{f.label}{f.required && ' *'}</span>
+                  {input}
+                </label>
+              </div>
             );
           })}
           {err && <div className="err">{err}</div>}
+          {confirming && row?.id && (
+            <div className="confirm-box">
+              {table === 'projects' ? (
+                <>
+                  <b>Delete {row.code ? `${row.code} · ` : ''}{row.name} for good?</b>
+                  <p className="small">This also deletes everything inside it: budget, buyout, subcontracts, change orders, material buys,
+                    invoices, progress, scope gaps, specs, scopes and vendor assignments. It can’t be undone. Export the project workbook first if you might need it.</p>
+                  <label className="field"><span>Type {row.code || row.name} to confirm</span>
+                    <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} />
+                  </label>
+                </>
+              ) : table === 'vendors' ? (
+                <>
+                  <b>Delete {row.name}?</b>
+                  <p className="small">They’re removed from every job they’re assigned to. Subcontracts, POs and invoices keep their amounts but lose the vendor name. This can’t be undone.</p>
+                </>
+              ) : (
+                <b>Delete this {ent.singular.toLowerCase()}? This can’t be undone.</b>
+              )}
+              <div className="confirm-actions">
+                <button type="button" className="ghost" onClick={() => { setConfirming(false); setTyped(''); }}>Keep it</button>
+                <button type="button" className="danger solid" disabled={busy || (table === 'projects' && typed.trim() !== String(row.code || row.name).trim())} onClick={del}>
+                  {busy ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <div className="drawer-foot">
-          {row?.id && <button type="button" className="danger" disabled={busy} onClick={del}>Delete</button>}
+          {row?.id && !confirming && <button type="button" className="danger" disabled={busy} onClick={() => setConfirming(true)}>Delete {ent.singular.toLowerCase()}</button>}
           <span style={{ flex: 1 }} />
           <button type="button" className="ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>

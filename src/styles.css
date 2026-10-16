@@ -261,7 +261,7 @@ tr.flash td, td.flash, .card.flash { animation: flash 2.4s ease-out; }
 .picker-search { border: none; border-bottom: 1px solid var(--line); border-radius: 0; padding: 12px 14px; font-size: 14px; }
 .picker-search:focus { outline: none; box-shadow: inset 0 -2px 0 var(--accent); }
 .picker-list { list-style: none; margin: 0; padding: 4px 0; max-height: min(420px, 60vh); overflow-y: auto; }
-.picker-list li { display: grid; grid-template-columns: 72px 1fr auto; gap: 10px; align-items: center; padding: 8px 14px; cursor: pointer; }
+.picker-list li { display: grid; grid-template-columns: 72px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 14px; cursor: pointer; }
 .picker-list li.hi { background: var(--surface-2); }
 .picker-list li.cur { box-shadow: inset 3px 0 0 var(--accent); }
 .picker-list .mono { color: var(--muted); }
@@ -276,3 +276,37 @@ tr.flash td, td.flash, .card.flash { animation: flash 2.4s ease-out; }
 main.full { padding: 0; }
 .crew-frame { display: block; width: 100%; border: 0; background: #14171b;
   height: calc(100vh - 52px - env(safe-area-inset-top, 0px)); height: calc(100dvh - 52px - env(safe-area-inset-top, 0px)); }
+
+/* Job type tags */
+.jt { display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .03em; padding: 1px 7px; border-radius: 10px; white-space: nowrap; vertical-align: 1px; }
+.jt-renovation { background: rgba(79,143,247,.16); color: #4f8ff7; }
+.jt-loss { background: rgba(240,96,92,.15); color: #e0544f; }
+.jt-gc { background: rgba(34,176,125,.16); color: #1f9c6f; }
+
+/* Drawer extras */
+.drawer-section { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.confirm-box { border: 1px solid var(--bad); border-radius: 8px; padding: 12px; display: grid; gap: 8px; background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.confirm-box p { margin: 0; }
+.confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+button.danger.solid { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 600; }
+button.danger.solid:disabled { opacity: .45; cursor: not-allowed; }
+button.small { padding: 3px 8px; font-size: 12px; }
+.nowrap { white-space: nowrap; }
+
+/* Assign vendor picker */
+.pick-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; max-height: 52vh; overflow-y: auto; }
+.pick-list li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.pick-list li:last-child { border-bottom: 0; }
+.pick-list li:hover { background: var(--surface-2); }
+.pick-list li.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.pick-list li.dim { opacity: .55; cursor: default; }
+.pick-list input { width: auto; margin: 0; }
+
+/* Key/value details */
+.details { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 16px; margin: 0; }
+.details dt { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.details dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.pre { white-space: pre-wrap; margin: 0; }
+.tcard-client { margin-top: 4px; color: var(--text); opacity: .85; }
+
+.att li.muted { display: block; }

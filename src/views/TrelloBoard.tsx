@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { labelStyle, TRELLO_BOARD_URL, useTrello, type TCard } from '../lib/trello';
 import { useStore } from '../lib/store';
+import type { Row } from '../lib/schema';
 import { date } from '../lib/format';
 import { PageHead } from '../components/ui';
 
@@ -21,7 +22,7 @@ export function TrelloBoard() {
   const byList = useMemo(() => {
     const m = new Map<string, TCard[]>();
     cards
-      .filter((c) => !needle || c.name.toLowerCase().includes(needle) || c.labels.some((l) => (l.name ?? '').toLowerCase().includes(needle)))
+      .filter((c) => !needle || [c.name, c.client, c.invoice_to].some((v) => (v ?? '').toLowerCase().includes(needle)) || c.labels.some((l) => (l.name ?? '').toLowerCase().includes(needle)))
       .sort((a, b) => a.pos - b.pos)
       .forEach((c) => { const a = m.get(c.list_id) ?? []; a.push(c); m.set(c.list_id, a); });
     return m;
@@ -58,7 +59,7 @@ export function TrelloBoard() {
   return (
     <>
       <PageHead title="Raleigh Current Jobs">
-        <input className="search" style={{ width: 220 }} placeholder="Search cards or labels…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="search" style={{ width: 220 }} placeholder="Search cards, clients, labels…" value={q} onChange={(e) => setQ(e.target.value)} />
         <button disabled={!!busy} onClick={() => run('sync', async () => { const r = await call('sync'); flash('ok', `Synced ${r.cards} cards from Trello.`); })}>
           {busy === 'sync' ? 'Syncing…' : '⟳ Sync now'}
         </button>
@@ -95,6 +96,12 @@ export function TrelloBoard() {
                         <div className="tlabels">{c.labels.map((lb) => <span key={lb.id} className="tlabel" style={labelStyle(lb.color)}>{lb.name || ' '}</span>)}</div>
                       )}
                       <div className="tcard-name">{c.name}</div>
+                      {(c.client || c.invoice_to) && (
+                        <div className="tcard-client small">
+                          {c.client && <span title="Client">{c.client}</span>}
+                          {c.invoice_to && c.invoice_to !== c.client && <span className="muted" title="Invoice to"> · bill {c.invoice_to}</span>}
+                        </div>
+                      )}
                       <div className="tcard-meta">
                         {c.due && <span className={`tdue ${c.due_complete ? 'done' : new Date(c.due) < new Date() ? 'late' : ''}`}>◷ {date(c.due)}</span>}
                         {proj && <a className="tproj" href={`#/p/${encodeURIComponent(proj.code)}/dashboard`} onClick={(e) => e.stopPropagation()}>Tracker ↗</a>}
@@ -115,8 +122,9 @@ export function TrelloBoard() {
 function CardDrawer({ card, onClose, onMove, flash }:
   { card: TCard; onClose: () => void; onMove: (c: TCard, listId: string) => Promise<void>; flash: (t: 'ok' | 'err', s: string) => void }) {
   const { lists, labels, call } = useTrello();
-  const { all } = useStore();
+  const { all, save: saveRow } = useStore();
   const [listId, setListId] = useState(card.list_id);
+  const [adding, setAdding] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set(card.labels.map((l) => l.id)));
   const [due, setDue] = useState(card.due ? card.due.slice(0, 10) : '');
   const [dueDone, setDueDone] = useState(card.due_complete);
@@ -163,6 +171,29 @@ function CardDrawer({ card, onClose, onMove, flash }:
             <a href={card.short_url} target="_blank" rel="noreferrer">Open card in Trello ↗</a>
             {proj && <a href={`#/p/${encodeURIComponent(proj.code)}/dashboard`} onClick={onClose}>Open {proj.code} in tracker</a>}
           </div>
+          {(card.client || card.invoice_to || card.claim_id || card.encircle_url) && (
+            <dl className="details">
+              {card.client && <div><dt>Client</dt><dd>{card.client}</dd></div>}
+              {card.invoice_to && <div><dt>Invoice to</dt><dd>{card.invoice_to}</dd></div>}
+              {card.claim_id && <div><dt>Claim</dt><dd>{card.claim_id}</dd></div>}
+              {card.encircle_url && <div><dt>Encircle</dt><dd><a href={card.encircle_url} target="_blank" rel="noreferrer">Open claim ↗</a></dd></div>}
+            </dl>
+          )}
+          {!proj && (
+            <div className="small">
+              <button type="button" className="link" disabled={adding} onClick={async () => {
+                setAdding(true);
+                try {
+                  const row = projectFromCard(card);
+                  await saveRow('projects', row);
+                  flash('ok', `Added ${row.code ?? row.name} to the tracker.`);
+                  onClose();
+                  if (row.code) location.hash = `#/p/${encodeURIComponent(row.code)}/dashboard`;
+                } catch (e: any) { flash('err', e.message ?? String(e)); setAdding(false); }
+              }}>{adding ? 'Adding…' : '+ Add this job to the tracker'}</button>
+              <span className="muted"> · fills in job #, name, client, billed to and job type from the card</span>
+            </div>
+          )}
           <label className="field"><span>List</span>
             <select value={listId} onChange={(e) => setListId(e.target.value)}>
               {[...lists].sort((a, b) => a.pos - b.pos).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -199,6 +230,23 @@ function CardDrawer({ card, onClose, onMove, flash }:
   );
 }
 
+/** Guess a tracker project from a Trello card. */
+function projectFromCard(c: TCard): Partial<Row> {
+  const m = c.name.match(/^\s*#\s*([A-Za-z]?\d[\w-]*)\s*:?\s*(.*)$/);
+  const code = c.job_code ?? m?.[1] ?? null;
+  const name = (m?.[2] || c.name).replace(/\s+/g, ' ').trim();
+  const n = c.name.toLowerCase();
+  const loss = /\bems\b|rebuild|water|fire|flood|leak|mold|hurricane|storm|loss|moisture/.test(n) || /^[dv]\d/i.test(code ?? '');
+  const reno = /renovation|\breno\b/.test(n);
+  return {
+    code, name, client: c.client, billed_to: c.invoice_to,
+    job_type: reno ? 'renovation' : loss ? 'loss' : 'gc',
+    status: 'active',
+    ...(loss ? { claim_number: c.claim_id, encircle_url: c.encircle_url,
+      loss_type: /fire/.test(n) ? 'fire' : /mold/.test(n) ? 'mold' : /hurricane|storm/.test(n) ? 'storm' : 'water' } : {}),
+  };
+}
+
 /** Small panel for a project's dashboard: its Trello card(s), if any. */
 export function TrelloForProject({ code }: { code?: string }) {
   const { available, cards, lists } = useTrello();
@@ -212,6 +260,7 @@ export function TrelloForProject({ code }: { code?: string }) {
         <div key={c.id} className="detail-row" style={{ gridTemplateColumns: '1fr auto' }}>
           <span>
             <b>{lists.find((l) => l.id === c.list_id)?.name ?? '—'}</b> · {c.name}
+            {(c.client || c.invoice_to) && <span className="muted small"> · {[c.client && `Client: ${c.client}`, c.invoice_to && `Invoice to: ${c.invoice_to}`].filter(Boolean).join(' · ')}</span>}
             <span className="tlabels" style={{ marginTop: 4 }}>{c.labels.map((lb) => <span key={lb.id} className="tlabel" style={labelStyle(lb.color)}>{lb.name}</span>)}</span>
           </span>
           <a className="small" href={c.short_url} target="_blank" rel="noreferrer">Open ↗</a>

@@ -40,3 +40,10 @@ export function PageHead({ title, children }: { title: string; children?: ReactN
     </div>
   );
 }
+
+/** Small coloured tag for a project's job type. */
+export function JobTypeTag({ type }: { type?: string }) {
+  const t = type === 'loss' || type === 'gc' ? type : 'renovation';
+  const text = t === 'loss' ? 'Water/Fire Loss' : t === 'gc' ? 'GC' : 'Renovation';
+  return <span className={`jt jt-${t}`}>{text}</span>;
+}

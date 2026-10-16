@@ -4,7 +4,7 @@
 export type TableName =
   | 'projects' | 'vendors' | 'budget_lines' | 'buyout_packages' | 'commitments'
   | 'change_orders' | 'material_buys' | 'invoices' | 'progress' | 'scope_gaps'
-  | 'specs' | 'scopes';
+  | 'specs' | 'scopes' | 'project_vendors';
 
 export type Row = { id: string; [k: string]: any };
 
@@ -21,6 +21,9 @@ export interface Field {
   table?: boolean;      // show as a table column (default true)
   total?: boolean;      // sum in the table footer
   computed?: (r: Row) => any;  // read-only derived column
+  showIf?: (r: Partial<Row>) => boolean;  // only show in the form when this is true
+  section?: string;     // heading shown above this field in the form
+  optionLabels?: Record<string, string>;  // display names for select options
 }
 
 export interface Entity {
@@ -48,18 +51,43 @@ const STATUS = {
 };
 export const STATUS_OPTIONS = STATUS;
 
+// ---------- job classification ----------
+export const JOB_TYPES = ['renovation', 'loss', 'gc'] as const;
+export type JobType = (typeof JOB_TYPES)[number];
+export const JOB_TYPE_LABEL: Record<string, string> = { renovation: 'Renovation', loss: 'Water/Fire Loss', gc: 'GC' };
+export const jobType = (p?: Partial<Row> | null): JobType => (JOB_TYPES as readonly string[]).includes(p?.job_type) ? p!.job_type : 'renovation';
+const isLoss = (r: Partial<Row>) => jobType(r) === 'loss';
+const isGc = (r: Partial<Row>) => jobType(r) === 'gc';
+const notLoss = (r: Partial<Row>) => jobType(r) !== 'loss';
+
 export const ENTITIES: Record<TableName, Entity> = {
   projects: {
     table: 'projects', label: 'Projects', singular: 'Project', projectScoped: false, statusKey: 'status',
     fields: [
+      { key: 'job_type', label: 'Job type', type: 'select', options: [...JOB_TYPES], optionLabels: JOB_TYPE_LABEL, required: true },
       { key: 'code', label: 'Job #', type: 'text' },
       { key: 'name', label: 'Name', type: 'text', required: true },
       { key: 'address', label: 'Address', type: 'text' },
       { key: 'client', label: 'Client', type: 'text' },
-      { key: 'contract_value', label: 'Contract value', type: 'money' },
+      { key: 'billed_to', label: 'Billed to', type: 'text', table: false },
+      { key: 'contract_value', label: 'Contract value', type: 'money', showIf: notLoss },
       { key: 'start_date', label: 'Start', type: 'date' },
       { key: 'target_completion', label: 'Target completion', type: 'date' },
       { key: 'status', label: 'Status', type: 'select', options: STATUS.project },
+      // Water / fire loss
+      { key: 'loss_type', label: 'Loss type', type: 'select', options: ['water', 'fire', 'mold', 'storm', 'other'], showIf: isLoss, section: 'Water / fire loss', table: false },
+      { key: 'loss_date', label: 'Date of loss', type: 'date', showIf: isLoss, table: false },
+      { key: 'claim_number', label: 'Claim #', type: 'text', showIf: isLoss, table: false },
+      { key: 'carrier', label: 'Carrier / adjuster', type: 'text', showIf: isLoss, table: false },
+      { key: 'xactimate_amount', label: 'Xactimate amount', type: 'money', showIf: isLoss, table: false },
+      { key: 'ems_amount', label: 'EMS amount', type: 'money', showIf: isLoss, table: false },
+      { key: 'rebuild_amount', label: 'Rebuild amount', type: 'money', showIf: isLoss, table: false },
+      { key: 'encircle_url', label: 'Encircle link', type: 'url', showIf: isLoss, table: false },
+      // GC
+      { key: 'invoice_amount', label: 'Invoice amount', type: 'money', showIf: isGc, section: 'GC job', table: false },
+      { key: 'po_number', label: 'PO / work order #', type: 'text', showIf: isGc, table: false },
+      { key: 'invoiced_date', label: 'Invoiced on', type: 'date', showIf: isGc, table: false },
+      { key: 'scope_description', label: 'Scope description', type: 'textarea', showIf: isGc, table: false },
     ],
   },
   vendors: {
@@ -70,6 +98,8 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'contact_name', label: 'Contact', type: 'text' },
       { key: 'email', label: 'Email', type: 'email' },
       { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'city', label: 'City', type: 'text' },
+      { key: 'state', label: 'State', type: 'text' },
       { key: 'coi_expires', label: 'COI expires', type: 'date' },
       { key: 'license_no', label: 'License #', type: 'text', table: false },
     ],
@@ -215,6 +245,15 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'exclusions', label: 'Exclusions', type: 'textarea' },
       { key: 'clarifications', label: 'Clarifications', type: 'textarea', table: false },
       { key: 'doc_url', label: 'Document', type: 'url', table: false },
+    ],
+  },
+  project_vendors: {
+    table: 'project_vendors', label: 'Vendors on this job', singular: 'Vendor assignment', projectScoped: true,
+    fields: [
+      { key: 'vendor_id', label: 'Vendor', type: 'ref', ref: 'vendors', required: true },
+      { key: 'role', label: 'Role / scope on this job', type: 'text' },
+      { key: 'amount', label: 'Amount', type: 'money', total: true },
+      { key: 'notes', label: 'Notes', type: 'textarea', table: false },
     ],
   },
 };

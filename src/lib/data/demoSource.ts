@@ -8,7 +8,11 @@ type DB = Record<TableName, Row[]>;
 function load(): DB {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      // fill in any table added since this browser last saved the demo
+      const saved = JSON.parse(raw);
+      return { ...Object.fromEntries(Object.keys(ENTITIES).map((t) => [t, []])), ...saved } as DB;
+    }
   } catch { /* storage unavailable: fall through to seed */ }
   return buildSeed();
 }

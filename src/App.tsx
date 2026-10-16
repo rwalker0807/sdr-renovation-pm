@@ -1,25 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './lib/store';
-import { ENTITIES, type Row, type TableName } from './lib/schema';
+import { ENTITIES, jobType, type JobType, type Row, type TableName } from './lib/schema';
 import { BudgetView, BuyoutView, Dashboard, GenericView, ProgressView, VendorsView } from './views/views';
 import { CrewSchedule, Home } from './views/Home';
 import { TrelloBoard } from './views/TrelloBoard';
 import { RecordDrawer } from './components/RecordDrawer';
 import { ProjectPicker } from './components/ProjectPicker';
+import { ProjectVendorsView } from './views/ProjectVendors';
 
-// Sidebar inside a project tab
-const NAV: { key: string; label: string; group: string }[] = [
+// Sidebar inside a project tab; `types` limits an item to some job types (default: all)
+const NAV: { key: string; label: string; group: string; types?: JobType[] }[] = [
   { key: 'dashboard', label: 'Dashboard', group: 'Overview' },
-  { key: 'budget', label: 'Budget & Cost', group: 'Money' },
+  { key: 'budget', label: 'Budget & Cost', group: 'Money', types: ['renovation', 'gc'] },
   { key: 'change_orders', label: 'Change Orders', group: 'Money' },
   { key: 'invoices', label: 'Invoices', group: 'Money' },
-  { key: 'buyout', label: 'Buyout', group: 'Procurement' },
+  { key: 'project_vendors', label: 'Vendors', group: 'Procurement' },
+  { key: 'buyout', label: 'Buyout', group: 'Procurement', types: ['renovation'] },
   { key: 'commitments', label: 'Subcontracts & POs', group: 'Procurement' },
   { key: 'material_buys', label: 'Material Buys', group: 'Procurement' },
-  { key: 'progress', label: 'Onsite Progress', group: 'Field' },
+  { key: 'progress', label: 'Onsite Progress', group: 'Field', types: ['renovation', 'gc'] },
   { key: 'scope_gaps', label: 'Scope Gaps', group: 'Field' },
-  { key: 'scopes', label: 'Scopes of Work', group: 'Documents' },
-  { key: 'specs', label: 'Specs', group: 'Documents' },
+  { key: 'scopes', label: 'Scopes of Work', group: 'Documents', types: ['renovation', 'gc'] },
+  { key: 'specs', label: 'Specs', group: 'Documents', types: ['renovation'] },
 ];
 
 // Routes:  #/  (home) · #/crew · #/vendors · #/p/<job code>/<view>
@@ -75,6 +77,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
     case 'budget': body = <BudgetView />; break;
     case 'buyout': body = <BuyoutView />; break;
     case 'progress': body = <ProgressView />; break;
+    case 'project_vendors': body = <ProjectVendorsView />; break;
     default: body = pview in ENTITIES ? <GenericView table={pview as TableName} /> : <Dashboard go={(v) => { location.hash = projectHref(project, v); }} />;
   }
 
@@ -109,7 +112,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
               <div className="side-name">{project.name}</div>
             </div>
             <nav>
-              {NAV.map((n) => {
+              {NAV.filter((n) => !n.types || n.types.includes(jobType(project))).map((n) => {
                 const head = n.group !== lastGroup ? <div className="nav-group" key={n.group}>{n.group}</div> : null;
                 lastGroup = n.group;
                 return [head, <a key={n.key} href={projectHref(project, n.key)} className={view === n.key ? 'on' : ''}>{n.label}</a>];
@@ -122,7 +125,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
           {body}
         </main>
       </div>
-      {newProject && <RecordDrawer table="projects" defaults={{ status: 'active' }} onClose={() => setNewProject(false)} />}
+      {newProject && <RecordDrawer table="projects" defaults={{ status: 'active', job_type: 'renovation' }} onClose={() => setNewProject(false)} />}
     </div>
   );
 }

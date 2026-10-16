@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Row } from '../lib/schema';
-import { Pill } from './ui';
+import { JobTypeTag, Pill } from './ui';
 
 /** Top-bar "Projects" dropdown with type-to-search (job #, name, client, address) and keyboard control. */
 export function ProjectPicker({ projects, current, onPick, onNew }:
@@ -62,6 +62,7 @@ export function ProjectPicker({ projects, current, onPick, onNew }:
                   onMouseEnter={() => setHi(i)} onMouseDown={(e) => { e.preventDefault(); pick(p); }}>
                 <span className="mono">{p.code}</span>
                 <span className="picker-row-name">{p.name}<span className="muted small">{p.client ? ` · ${p.client}` : ''}</span></span>
+                <JobTypeTag type={p.job_type} />
                 <Pill value={p.status} />
               </li>
             ))}

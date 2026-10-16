@@ -7,6 +7,8 @@ export type TCard = {
   id: string; list_id: string; name: string; job_code: string | null; labels: TLabel[];
   due: string | null; due_complete: boolean; description: string | null; closed: boolean;
   pos: number; short_url: string; last_activity: string | null;
+  client: string | null; invoice_to: string | null; claim_id: string | null; encircle_url: string | null;
+  custom_fields: Record<string, string>;
 };
 
 export const TRELLO_BOARD_URL = 'https://trello.com/b/DzJDcnGb/raleigh-current-jobs';
