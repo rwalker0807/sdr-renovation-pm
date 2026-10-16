@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from './lib/store';
-import { ENTITIES, type TableName } from './lib/schema';
+import { ENTITIES, type Row, type TableName } from './lib/schema';
 import { BudgetView, BuyoutView, Dashboard, GenericView, ProgressView } from './views/views';
+import { CrewSchedule, Home } from './views/Home';
 import { RecordDrawer } from './components/RecordDrawer';
 
+// Sidebar inside a project tab
 const NAV: { key: string; label: string; group: string }[] = [
   { key: 'dashboard', label: 'Dashboard', group: 'Overview' },
   { key: 'budget', label: 'Budget & Cost', group: 'Money' },
@@ -16,24 +18,39 @@ const NAV: { key: string; label: string; group: string }[] = [
   { key: 'scope_gaps', label: 'Scope Gaps', group: 'Field' },
   { key: 'scopes', label: 'Scopes of Work', group: 'Documents' },
   { key: 'specs', label: 'Specs', group: 'Documents' },
-  { key: 'vendors', label: 'Vendors & Subs', group: 'Directory' },
-  { key: 'projects', label: 'All Projects', group: 'Directory' },
 ];
 
-function readHash() { return location.hash.replace('#/', '') || 'dashboard'; }
+// Routes:  #/  (home) · #/crew · #/vendors · #/p/<job code>/<view>
+type Route = { page: 'home' | 'crew' | 'vendors' } | { page: 'project'; code: string; view: string };
+function parseHash(): Route {
+  const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
+  if (parts[0] === 'p' && parts[1]) return { page: 'project', code: parts[1], view: parts[2] || 'dashboard' };
+  if (parts[0] === 'crew') return { page: 'crew' };
+  if (parts[0] === 'vendors') return { page: 'vendors' };
+  return { page: 'home' };
+}
+const projectHref = (p: Row, view = 'dashboard') => `#/p/${encodeURIComponent(p.code || p.id)}/${view}`;
 
 export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void; onResetDemo?: () => void }) {
-  const { data, projectId, setProjectId, loading, error, live, lastEvent, source } = useStore();
-  const [view, setView] = useState(readHash);
+  const { all, setProjectId, loading, error, live, lastEvent, source } = useStore();
+  const [route, setRoute] = useState<Route>(parseHash);
   const [newProject, setNewProject] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
-    const h = () => setView(readHash());
+    const h = () => { setRoute(parseHash()); setNavOpen(false); };
     window.addEventListener('hashchange', h);
     return () => window.removeEventListener('hashchange', h);
   }, []);
-  const go = (v: string) => { location.hash = `#/${v}`; setNavOpen(false); };
+
+  const tabs = useMemo(
+    () => all.projects.filter((p) => p.status !== 'complete').sort((a, b) => String(a.code).localeCompare(String(b.code))),
+    [all.projects],
+  );
+  const project = route.page === 'project' ? all.projects.find((p) => (p.code || p.id) === route.code) : undefined;
+
+  // keep the store's current project in step with the URL
+  useEffect(() => { setProjectId(project?.id ?? null); }, [project?.id, setProjectId]);
 
   const [pulse, setPulse] = useState(false);
   useEffect(() => {
@@ -43,55 +60,72 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
     return () => clearTimeout(t);
   }, [lastEvent]);
 
+  const openProject = (p: Row) => { location.hash = projectHref(p); };
+
+  const pview = route.page === 'project' ? route.view : 'dashboard';
   let body;
   if (error) body = <div className="panel err">Couldn’t load data: {error}</div>;
-  else if (loading && !data.projects.length) body = <div className="muted pad">Loading…</div>;
-  else if (!data.projects.length) body = (
-    <div className="panel pad">
-      <h2>No projects yet</h2>
-      <button className="primary" onClick={() => setNewProject(true)}>+ Create your first project</button>
-    </div>
-  );
-  else switch (view) {
-    case 'dashboard': body = <Dashboard go={go} />; break;
+  else if (loading && !all.projects.length) body = <div className="muted pad">Loading…</div>;
+  else if (route.page === 'home') body = <Home openProject={openProject} />;
+  else if (route.page === 'crew') body = <CrewSchedule />;
+  else if (route.page === 'vendors') body = <GenericView table="vendors" />;
+  else if (!project) body = <div className="panel pad">That project isn’t in the tracker. <a href="#/">Back to all projects</a></div>;
+  else switch (pview) {
+    case 'dashboard': body = <Dashboard go={(v) => { location.hash = projectHref(project, v); }} />; break;
     case 'budget': body = <BudgetView />; break;
     case 'buyout': body = <BuyoutView />; break;
     case 'progress': body = <ProgressView />; break;
-    default: body = view in ENTITIES ? <GenericView table={view as TableName} /> : <Dashboard go={go} />;
+    default: body = pview in ENTITIES ? <GenericView table={pview as TableName} /> : <Dashboard go={(v) => { location.hash = projectHref(project, v); }} />;
   }
 
   let lastGroup = '';
+  const view = route.page === 'project' ? route.view : '';
   return (
-    <div className="app">
-      <aside className={`side ${navOpen ? 'open' : ''}`}>
-        <div className="brand"><span className="brand-mark">SDR</span> Renovation PM</div>
-        <label className="proj">
-          <span className="small muted">Project</span>
-          <select value={projectId ?? ''} onChange={(e) => (e.target.value === '__new' ? setNewProject(true) : setProjectId(e.target.value))}>
-            {data.projects.map((p) => <option key={p.id} value={p.id}>{p.code ? `${p.code} · ` : ''}{p.name}</option>)}
-            <option value="__new">+ New project…</option>
-          </select>
-        </label>
-        <nav>
-          {NAV.map((n) => {
-            const head = n.group !== lastGroup ? <div className="nav-group" key={n.group}>{n.group}</div> : null;
-            lastGroup = n.group;
-            return [head, <a key={n.key} href={`#/${n.key}`} className={view === n.key ? 'on' : ''} onClick={() => setNavOpen(false)}>{n.label}</a>];
-          })}
+    <div className="shell">
+      <header className="topbar">
+        <a className="brand" href="#/"><span className="brand-mark">SDR</span><span className="brand-name">Renovation PM</span></a>
+        <nav className="tabs" aria-label="Projects">
+          <a href="#/" className={route.page === 'home' ? 'on' : ''}>Home</a>
+          {tabs.map((p) => (
+            <a key={p.id} href={projectHref(p)} className={project?.id === p.id ? 'on' : ''} title={p.name}>
+              <span className="tab-code">{p.code}</span> {p.name}
+            </a>
+          ))}
+          <button className="tab-add" onClick={() => setNewProject(true)} title="New project">+</button>
+          <span className="tabs-sep" />
+          <a href="#/crew" className={route.page === 'crew' ? 'on' : ''}>Crew Schedule</a>
+          <a href="#/vendors" className={route.page === 'vendors' ? 'on' : ''}>Vendors</a>
         </nav>
-        <div className="side-foot">
-          <div className={`live ${live ? 'on' : ''} ${pulse ? 'pulse' : ''}`}>
-            <span className="live-dot" /> {live ? 'Live' : 'Offline'} · {source.kind === 'demo' ? 'demo data' : 'database'}
-          </div>
-          {lastEvent && <div className="small muted">Last change: {lastEvent.label} {new Date(lastEvent.at).toLocaleTimeString()}</div>}
-          {onResetDemo && <button className="link small" onClick={onResetDemo}>Reset demo data</button>}
+        <div className="top-right">
+          <span className={`live ${live ? 'on' : ''} ${pulse ? 'pulse' : ''}`} title={lastEvent ? `Last change: ${lastEvent.label} ${new Date(lastEvent.at).toLocaleTimeString()}` : ''}>
+            <span className="live-dot" /> {live ? 'Live' : 'Offline'}{source.kind === 'demo' ? ' · demo' : ''}
+          </span>
+          {onResetDemo && <button className="link small" onClick={onResetDemo}>Reset demo</button>}
           {onSignOut && <button className="link small" onClick={onSignOut}>Sign out</button>}
         </div>
-      </aside>
-      <main>
-        <button className="menu-btn" onClick={() => setNavOpen((o) => !o)}>☰ Menu</button>
-        {body}
-      </main>
+      </header>
+
+      <div className={`app ${project ? 'with-side' : ''}`}>
+        {project && (
+          <aside className={`side ${navOpen ? 'open' : ''}`}>
+            <div className="side-project">
+              <div className="mono small">{project.code}</div>
+              <div className="side-name">{project.name}</div>
+            </div>
+            <nav>
+              {NAV.map((n) => {
+                const head = n.group !== lastGroup ? <div className="nav-group" key={n.group}>{n.group}</div> : null;
+                lastGroup = n.group;
+                return [head, <a key={n.key} href={projectHref(project, n.key)} className={view === n.key ? 'on' : ''}>{n.label}</a>];
+              })}
+            </nav>
+          </aside>
+        )}
+        <main>
+          {project && <button className="menu-btn" onClick={() => setNavOpen((o) => !o)}>☰ {project.code} menu</button>}
+          {body}
+        </main>
+      </div>
       {newProject && <RecordDrawer table="projects" defaults={{ status: 'active' }} onClose={() => setNewProject(false)} />}
     </div>
   );
