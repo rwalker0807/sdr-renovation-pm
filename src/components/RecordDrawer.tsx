@@ -89,7 +89,9 @@ export function RecordDrawer({ table, row, defaults, onClose }:
                 input = (
                   <select value={v ?? ''} onChange={(e) => set(f.key, e.target.value || null)}>
                     <option value="">—</option>
-                    {data[f.ref!].map((r) => <option key={r.id} value={r.id}>{refLabel(f.ref!, r)}</option>)}
+                    {data[f.ref!].filter((r) => r.active !== false || r.id === v)
+                      .map((r) => ({ r, l: refLabel(f.ref!, r) })).sort((x, y) => x.l.localeCompare(y.l, undefined, { numeric: true }))
+                      .map(({ r, l }) => <option key={r.id} value={r.id}>{l}</option>)}
                   </select>
                 ); break;
               case 'bool':

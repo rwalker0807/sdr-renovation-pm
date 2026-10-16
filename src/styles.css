@@ -502,3 +502,20 @@ button.small { padding: 3px 8px; font-size: 12px; }
   .home-side > .panel:last-child { order: 1; }
   .job-list .table-scroll { max-height: none; }
 }
+
+/* ---- tasks in Needs attention ---- */
+.att-head { gap: 10px; }
+.att-head h2 { margin-right: 4px; }
+.att-tools { display: flex; gap: 10px; align-items: center; margin: -4px 0 8px; }
+.att-tools select { width: auto; padding: 3px 8px; font-size: 13px; }
+.att li.task { grid-template-columns: 16px 80px 1fr; align-items: start; }
+.att li.task input[type=checkbox] { width: 15px; height: 15px; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+.task-main { display: grid; gap: 2px; min-width: 0; }
+.task-title { font-weight: 600; }
+.task.done .task-title { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+.task-hi { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--bad); color: #fff; font-size: 10px; font-weight: 800; margin-right: 6px; vertical-align: 1px; }
+.task-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.task-meta a { text-decoration: none; }
+.who { display: inline-flex; align-items: center; gap: 5px; }
+.who i { font-style: normal; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 9px; font-weight: 700; }
+.att-more { margin-top: 8px; }

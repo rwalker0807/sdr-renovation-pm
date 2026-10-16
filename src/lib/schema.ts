@@ -4,7 +4,7 @@
 export type TableName =
   | 'projects' | 'vendors' | 'budget_lines' | 'buyout_packages' | 'commitments'
   | 'change_orders' | 'material_buys' | 'invoices' | 'progress' | 'scope_gaps'
-  | 'specs' | 'scopes' | 'project_vendors' | 'sdr_people' | 'attachments';
+  | 'specs' | 'scopes' | 'project_vendors' | 'sdr_people' | 'attachments' | 'tasks';
 
 export type Row = { id: string; [k: string]: any };
 
@@ -275,6 +275,18 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'notes', label: 'Notes', type: 'textarea', table: false },
     ],
   },
+  tasks: {
+    table: 'tasks', label: 'Tasks', singular: 'Task', projectScoped: true, statusKey: 'status',
+    fields: [
+      { key: 'title', label: 'Task', type: 'text', required: true },
+      { key: 'project_id', label: 'Job (leave blank for a company-wide task)', type: 'ref', ref: 'projects' },
+      { key: 'assignee_id', label: 'Assigned to', type: 'ref', ref: 'sdr_people' },
+      { key: 'due_date', label: 'Due', type: 'date' },
+      { key: 'priority', label: 'Priority', type: 'select', options: ['normal', 'high'] },
+      { key: 'status', label: 'Status', type: 'select', options: ['open', 'done'] },
+      { key: 'notes', label: 'Notes', type: 'textarea', table: false },
+    ],
+  },
   attachments: {
     table: 'attachments', label: 'Files', singular: 'File', projectScoped: true,
     fields: [
@@ -299,7 +311,8 @@ export function refLabel(table: TableName, r: Row | undefined): string {
     case 'budget_lines': return `${r.cost_code} · ${r.description}`;
     case 'commitments': return `${r.number ?? ''} ${r.description ?? ''}`.trim();
     case 'buyout_packages': return r.package;
-    case 'projects': return r.name;
+    case 'projects': return [r.code, r.name].filter(Boolean).join(' · ');
+    case 'sdr_people': return r.name;
     default: return r.title ?? r.name ?? r.id;
   }
 }

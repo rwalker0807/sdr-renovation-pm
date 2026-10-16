@@ -4,6 +4,7 @@ import { forProject, useStore } from '../lib/store';
 import { attentionItems, budgetRollup, buyoutSummary, overallProgress, totals } from '../lib/rollups';
 import { money, moneyShort, pct } from '../lib/format';
 import { ZAPIER_FORMS } from '../lib/config';
+import { AttentionPanel } from '../components/Tasks';
 import { Kpi, Meter, PageHead, Pill } from '../components/ui';
 import { JOB_TYPE_LABEL, jobType, type Row } from '../lib/schema';
 
@@ -115,19 +116,7 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
             </div>
           </section>
 
-          <section className="panel">
-            <div className="panel-head"><h2>Needs attention, all jobs</h2><span className="muted small">{attention.length}</span></div>
-            <ul className="att">
-              {attention.slice(0, 16).map((a) => (
-                <li key={a.table + a.id} onClick={() => openProject(a.project)}>
-                  <span className={`dot ${a.tone}`} />
-                  <span className="att-kind">{a.project.code}</span>
-                  <span><b className="small">{a.kind}:</b> {a.text}</span>
-                </li>
-              ))}
-              {!attention.length && <li className="muted">All clear.</li>}
-            </ul>
-          </section>
+          <AttentionPanel title="Needs attention, all jobs" items={attention} onOpenItem={(a) => a.project && openProject(a.project)} />
         </div>
       </div>
     </>

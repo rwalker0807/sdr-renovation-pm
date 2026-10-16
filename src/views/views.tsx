@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ENTITIES, JOB_TYPE_LABEL, STATUS_OPTIONS, jobType, refLabel, type Row, type TableName } from '../lib/schema';
 import { useStore } from '../lib/store';
+import { AttentionPanel } from '../components/Tasks';
 import { attentionItems, budgetRollup, buyoutSummary, overallProgress, totals } from '../lib/rollups';
 import { date, money, moneyShort, pct } from '../lib/format';
 import { DataTable } from '../components/DataTable';
@@ -162,17 +163,9 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
             <JobDetails project={project} onEdit={() => open('projects', project)} />
             <ProjectVendorsPanel go={() => go('project_vendors')} />
           </div>
-          <section className="panel" style={{ marginTop: 16 }}>
-            <div className="panel-head"><h2>Needs attention</h2><span className="muted small">{att.length}</span></div>
-            <ul className="att">
-              {att.slice(0, 14).map((a) => (
-                <li key={a.table + a.id} onClick={() => open(a.table, byId(a.table, a.id))}>
-                  <span className={`dot ${a.tone}`} /><span className="att-kind">{a.kind}</span><span>{a.text}</span>
-                </li>
-              ))}
-              {!att.length && <li className="muted">All clear.</li>}
-            </ul>
-          </section>
+          <div style={{ marginTop: 16 }}>
+            <AttentionPanel title="Needs attention" items={att} projectId={projectId} limit={14} onOpenItem={(a) => open(a.table, byId(a.table, a.id))} />
+          </div>
         </>
       ) : (<>
       <div className="kpis">
@@ -189,17 +182,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
       <EncircleNote project={project} />
       <TrelloForProject code={project?.code} />
       <div className="grid2">
-        <section className="panel">
-          <div className="panel-head"><h2>Needs attention</h2><span className="muted small">{att.length}</span></div>
-          <ul className="att">
-            {att.slice(0, 14).map((a) => (
-              <li key={a.table + a.id} onClick={() => open(a.table, byId(a.table, a.id))}>
-                <span className={`dot ${a.tone}`} /><span className="att-kind">{a.kind}</span><span>{a.text}</span>
-              </li>
-            ))}
-            {!att.length && <li className="muted">All clear.</li>}
-          </ul>
-        </section>
+        <AttentionPanel title="Needs attention" items={att} projectId={projectId} limit={14} onOpenItem={(a) => open(a.table, byId(a.table, a.id))} />
         <section className="panel">
           <div className="panel-head"><h2>Budget by division</h2><button className="link" onClick={() => go('budget')}>Budget →</button></div>
           <div className="bars">
