@@ -22,8 +22,9 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
   const [date, setDate] = useState(isoToday());
   const [invNo, setInvNo] = useState(invoiceNumber(fromIso(isoToday()), job));
   const [invTouched, setInvTouched] = useState(false);
-  const [billTo, setBillTo] = useState<string>(project?.billed_to || project?.client || '');
-  const [attn, setAttn] = useState('');
+  // invoice BILL TO line = the job's Client; ATTN line = the job's Bill To (Trello "Invoice To")
+  const [billTo, setBillTo] = useState<string>(project?.client || '');
+  const [attn, setAttn] = useState<string>(project?.billed_to || '');
   const [forText, setForText] = useState(project ? `${job ? `#${job} ` : ''}${project.name ?? ''}`.trim() : '');
   const [lines, setLines] = useState<{ desc: string; amount: string }[]>([{ desc: '', amount: '' }]);
   const [note, setNote] = useState(NOTE_PRESETS[0]);
@@ -111,9 +112,11 @@ export function InvoiceBuilder({ project, onClose }: { project?: Row; onClose: (
             <div className="inv-row">
               <label className="field"><span>Bill to *</span>
                 <input list="inv-clients" value={billTo} onChange={(e) => setBillTo(e.target.value)} placeholder="Related, Venture, Grubb…" />
-                <datalist id="inv-clients">{[...new Set([...CLIENTS, project?.billed_to, project?.client].filter(Boolean))].map((c) => <option key={c} value={c} />)}</datalist>
+                <datalist id="inv-clients">{[...new Set([project?.client, ...CLIENTS].filter(Boolean))].map((c) => <option key={c} value={c} />)}</datalist>
+                <span className="muted small">The job’s client</span>
               </label>
-              <label className="field"><span>ATTN</span><input value={attn} onChange={(e) => setAttn(e.target.value)} placeholder="Property manager / contact" /></label>
+              <label className="field"><span>ATTN</span><input value={attn} onChange={(e) => setAttn(e.target.value)} placeholder="Who the invoice goes to" />
+                <span className="muted small">The job’s “Bill to”</span></label>
             </div>
             <label className="field"><span>For</span>
               <input value={forText} onChange={(e) => setForText(e.target.value)} placeholder="#26-370 Allen Ceiling Disinfection UNCW" />
