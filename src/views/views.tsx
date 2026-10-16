@@ -71,10 +71,10 @@ function JobDetails({ project: p, onEdit }: { project: Row; onEdit: () => void }
     ...(loss ? [
       ['Loss type', p.loss_type ? String(p.loss_type).replace(/^./, (c: string) => c.toUpperCase()) : null],
       ['Date of loss', p.loss_date ? date(p.loss_date) : null], ['Claim #', p.claim_number], ['Carrier / adjuster', p.carrier],
-      ['Encircle', p.encircle_url ? <a href={p.encircle_url} target="_blank" rel="noreferrer">Open claim ↗</a> : null],
     ] as [string, React.ReactNode][] : [
       ['PO / work order #', p.po_number], ['Invoiced on', p.invoiced_date ? date(p.invoiced_date) : null],
     ] as [string, React.ReactNode][]),
+    ['Encircle', p.encircle_url ? <a href={p.encircle_url} target="_blank" rel="noreferrer">Open claim ↗</a> : null],
     ['Start', p.start_date ? date(p.start_date) : null], ['Target completion', p.target_completion ? date(p.target_completion) : null],
   ];
   return (
@@ -147,6 +147,7 @@ export function Dashboard({ go }: { go: (v: string) => void }) {
     <>
       <PageHead title={project ? project.name : 'Dashboard'}>
         {project && <span className="muted small"><JobTypeTag type={jt} /> {project.code}{project.address ? ` · ${project.address}` : ''} · <Pill value={project.status} /></span>}
+        {project?.encircle_url && <a className="btn-link" href={project.encircle_url} target="_blank" rel="noreferrer" title="Open this job's Encircle claim">Encircle ↗</a>}
         {project && <button onClick={() => open('projects', project)}>✎ Edit job</button>}
         <button onClick={() => exportProject(project, data, byId)} title="Every tracker for this project in one Excel workbook">⤓ Project workbook</button>
       </PageHead>

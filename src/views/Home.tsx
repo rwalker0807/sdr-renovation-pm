@@ -92,7 +92,11 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
               {perProject.map((x) => (
                 <tr key={x.p.id} onClick={() => openProject(x.p)}>
                   <td className="mono">{x.p.code}</td>
-                  <td><b>{x.p.name}</b><div className="muted small">{x.p.client}</div></td>
+                  <td><b>{x.p.name}</b>
+                    <div className="muted small">{x.p.client}
+                      {x.p.encircle_url && <> {x.p.client ? '· ' : ''}<a href={x.p.encircle_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Encircle ↗</a></>}
+                    </div>
+                  </td>
                   <td><JobTypeTag type={jobType(x.p)} /></td>
                   <td><Pill value={x.p.status} /></td>
                   <td className="r num">{money(jobValue(x.p))}</td>

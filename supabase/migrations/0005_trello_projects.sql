@@ -52,7 +52,7 @@ begin
             case when v_type = 'loss' then case when v_low ~ 'fire' then 'fire' when v_low ~ 'mold' then 'mold'
                                                 when v_low ~ 'hurricane|storm' then 'storm' else 'water' end end,
             case when v_type = 'loss' then new.claim_id end,
-            case when v_type = 'loss' then new.encircle_url end,
+            new.encircle_url,
             new.id, v_list)
     on conflict (code) do nothing;
   else
@@ -61,7 +61,7 @@ begin
       client       = coalesce(nullif(client, ''), new.client),
       billed_to    = coalesce(nullif(billed_to, ''), new.invoice_to),
       claim_number = case when job_type = 'loss' then coalesce(nullif(claim_number, ''), new.claim_id) else claim_number end,
-      encircle_url = case when job_type = 'loss' then coalesce(nullif(encircle_url, ''), new.encircle_url) else encircle_url end,
+      encircle_url = coalesce(nullif(encircle_url, ''), new.encircle_url),
       -- follow list moves for the card this project is linked to (not on first link, so existing statuses stand)
       status       = case when v_prev_card = new.id and v_prev_list is distinct from v_list then v_status else status end,
       trello_list  = case when coalesce(v_prev_card, new.id) = new.id then v_list else trello_list end

@@ -69,6 +69,7 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'address', label: 'Address', type: 'text' },
       { key: 'client', label: 'Client', type: 'text' },
       { key: 'billed_to', label: 'Billed to', type: 'text', table: false },
+      { key: 'encircle_url', label: 'Encircle link', type: 'url', table: false },
       { key: 'contract_value', label: 'Contract value', type: 'money', showIf: notLoss },
       { key: 'start_date', label: 'Start', type: 'date' },
       { key: 'target_completion', label: 'Target completion', type: 'date' },
@@ -81,7 +82,6 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'xactimate_amount', label: 'Xactimate amount', type: 'money', showIf: isLoss, table: false },
       { key: 'ems_amount', label: 'EMS amount', type: 'money', showIf: isLoss, table: false },
       { key: 'rebuild_amount', label: 'Rebuild amount', type: 'money', showIf: isLoss, table: false },
-      { key: 'encircle_url', label: 'Encircle link', type: 'url', showIf: isLoss, table: false },
       // GC
       { key: 'invoice_amount', label: 'Invoice amount', type: 'money', showIf: isGc, section: 'GC job', table: false },
       { key: 'po_number', label: 'PO / work order #', type: 'text', showIf: isGc, table: false },
