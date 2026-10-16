@@ -6,6 +6,10 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import { useStore } from '../lib/store';
 import { labelStyle, labelHex } from '../lib/trello';
 import { date } from '../lib/format';
+import {
+  RADAR_STEPS, radarTiles, WARNINGS_WMS, fetchAlerts, fetchStormReports, fetchForecast, alertsFor, reportsNear, statesOf,
+  alertColor, REPORT_STYLE, REPORT_RADIUS_MI, reportMag, ago, until, type Alert, type StormReport, type Period,
+} from '../lib/weather';
 
 type Label = { id: string; name: string | null; color: string | null };
 type Prop = {
@@ -16,7 +20,10 @@ type Prop = {
   attachments: { name: string; url: string; date: string; mime: string | null }[];
   members: { name: string; username: string }[];
   due: string | null; due_complete: boolean; closed: boolean; pos: number; short_url: string; last_activity: string | null;
+  nws_zone?: string | null; nws_county?: string | null; nws_office?: string | null; nws_forecast_url?: string | null;
 };
+type Impact = { alerts: Alert[]; reports: (StormReport & { dist: number })[] };
+export type WxLayers = { radar: boolean; animate: boolean; warnings: boolean; reports: boolean };
 type PList = { id: string; name: string; pos: number; closed: boolean };
 
 export const PROPERTIES_BOARD_URL = 'https://trello.com/b/PrMw6Eks/related-properties';
@@ -54,6 +61,17 @@ export function ClientProperties() {
   const [clientF, setClientF] = useState('');
   const [sel, setSel] = useState<string | null>(null);
   const autoSynced = useRef(false);
+  // weather
+  const [layers, setLayers] = useState<WxLayers>(() => {
+    try { return { radar: true, animate: false, warnings: true, reports: false, ...JSON.parse(localStorage.getItem('sdr.wx') ?? '{}') }; }
+    catch { return { radar: true, animate: false, warnings: true, reports: false }; }
+  });
+  useEffect(() => { try { localStorage.setItem('sdr.wx', JSON.stringify(layers)); } catch { /* private mode */ } }, [layers]);
+  const [hours, setHours] = useState(72);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [reports, setReports] = useState<StormReport[]>([]);
+  const [wxErr, setWxErr] = useState<string | null>(null);
+  const [wxF, setWxF] = useState<'' | 'alert' | 'report'>('');
 
   const load = async () => {
     const [p, l] = await Promise.all([
@@ -103,6 +121,38 @@ export function ClientProperties() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [available]);
 
+  // active NWS alerts for the states the properties are in (refreshed every 5 minutes)
+  const states = useMemo(() => statesOf(props).join(','), [props]);
+  useEffect(() => {
+    if (!states) return;
+    let alive = true;
+    const run = () => fetchAlerts(states.split(','))
+      .then((a) => { if (alive) { setAlerts(a); setWxErr(null); } })
+      .catch((e) => alive && setWxErr(`Weather alerts unavailable (${e.message ?? e})`));
+    run();
+    const t = setInterval(run, 5 * 60e3);
+    return () => { alive = false; clearInterval(t); };
+  }, [states]);
+  // storm reports (hail, wind damage, tornado, flooding) for the chosen window (refreshed every 10 minutes)
+  useEffect(() => {
+    let alive = true;
+    const run = () => fetchStormReports(hours).then((r) => alive && setReports(r))
+      .catch((e) => alive && setWxErr(`Storm reports unavailable (${e.message ?? e})`));
+    run();
+    const t = setInterval(run, 10 * 60e3);
+    return () => { alive = false; clearInterval(t); };
+  }, [hours]);
+  const impact = useMemo(() => {
+    const m = new Map<string, Impact>();
+    for (const p of props) {
+      const a = alertsFor(p, alerts), r = reportsNear(p, reports);
+      if (a.length || r.length) m.set(p.id, { alerts: a, reports: r });
+    }
+    return m;
+  }, [props, alerts, reports]);
+  const nAlert = useMemo(() => [...impact.values()].filter((i) => i.alerts.length).length, [impact]);
+  const nReport = useMemo(() => [...impact.values()].filter((i) => i.reports.length).length, [impact]);
+
   const listName = useMemo(() => new Map(lists.map((l) => [l.id, l.name])), [lists]);
   const sortedLists = useMemo(() => [...lists].sort((a, b) => a.pos - b.pos), [lists]);
   const clients = useMemo(() => [...new Set(props.map(clientOf).filter(Boolean))].sort(), [props]);
@@ -111,9 +161,10 @@ export function ClientProperties() {
     return props
       .filter((p) => !state || p.list_id === state)
       .filter((p) => !clientF || clientOf(p) === clientF)
+      .filter((p) => !wxF || (wxF === 'alert' ? !!impact.get(p.id)?.alerts.length : !!impact.get(p.id)?.reports.length))
       .filter((p) => !n || [p.name, p.description, p.address, ...p.labels.map((l) => l.name)].some((v) => String(v ?? '').toLowerCase().includes(n)))
       .sort((a, b) => (listName.get(a.list_id ?? '') ?? '').localeCompare(listName.get(b.list_id ?? '') ?? '') || a.pos - b.pos);
-  }, [props, q, state, clientF, listName]);
+  }, [props, q, state, clientF, listName, wxF, impact]);
   const selected = props.find((p) => p.id === sel) ?? null;
 
   if (!available) {
@@ -144,6 +195,17 @@ export function ClientProperties() {
           <a className="btn-link" href={PROPERTIES_BOARD_URL} target="_blank" rel="noreferrer">Open board ↗</a>
         </div>
         {msg && <div className={`banner ${msg.tone}`}>{msg.text}</div>}
+        <div className="wx-summary">
+          <button className={`wx-chip alert ${wxF === 'alert' ? 'on' : ''}`} disabled={!nAlert} onClick={() => setWxF(wxF === 'alert' ? '' : 'alert')}
+            title="Properties inside an active National Weather Service watch, warning or advisory">
+            ⚠ {nAlert} under NWS alerts
+          </button>
+          <button className={`wx-chip report ${wxF === 'report' ? 'on' : ''}`} disabled={!nReport} onClick={() => setWxF(wxF === 'report' ? '' : 'report')}
+            title={`Properties within ${REPORT_RADIUS_MI} miles of a hail, wind-damage, tornado or flooding report`}>
+            ⛈ {nReport} near storm reports ({hours === 24 ? '24h' : hours === 72 ? '3 days' : '7 days'})
+          </button>
+        </div>
+        {wxErr && <div className="muted small">{wxErr}</div>}
         <ul className="props-list">
           {loading && <li className="muted">Loading…</li>}
           {!loading && !props.length && !syncing && <li className="muted">No properties yet. Click “Sync from Trello”.</li>}
@@ -154,23 +216,47 @@ export function ClientProperties() {
                 <b>{p.name}</b>
                 <span className="muted small">{[listName.get(p.list_id ?? ''), p.address].filter(Boolean).join(' · ')}</span>
                 {p.lat == null && <span className="small warn-text">No map location</span>}
+                <WxBadges i={impact.get(p.id)} />
               </span>
             </li>
           ))}
         </ul>
       </aside>
-      <PropertyMap props={shown} selected={sel} onSelect={setSel} />
-      {selected && <PropertyDetail p={selected} listName={listName.get(selected.list_id ?? '') ?? ''} onClose={() => setSel(null)} />}
+      <PropertyMap props={shown} selected={sel} onSelect={setSel} impact={impact} alerts={alerts} reports={reports}
+        layers={layers} setLayers={setLayers} hours={hours} setHours={setHours} />
+      {selected && <PropertyDetail p={selected} listName={listName.get(selected.list_id ?? '') ?? ''} impact={impact.get(selected.id)}
+        hours={hours} onClose={() => setSel(null)} />}
     </div>
   );
 }
 
-function PropertyMap({ props, selected, onSelect }: { props: Prop[]; selected: string | null; onSelect: (id: string) => void }) {
+function WxBadges({ i }: { i?: Impact }) {
+  if (!i) return null;
+  const a = i.alerts[0], r = i.reports[0];
+  return (
+    <span className="wx-badges">
+      {a && <span className="wx-badge" style={{ borderColor: alertColor(a) }}>
+        <i style={{ background: alertColor(a) }} />{a.event}{i.alerts.length > 1 ? ` +${i.alerts.length - 1}` : ''}</span>}
+      {r && <span className="wx-badge">
+        <i style={{ background: REPORT_STYLE[r.kind].color }} />{reportMag(r) || REPORT_STYLE[r.kind].label} · {r.dist.toFixed(1)} mi
+        {i.reports.length > 1 ? ` +${i.reports.length - 1}` : ''}</span>}
+    </span>
+  );
+}
+
+type MapProps = {
+  props: Prop[]; selected: string | null; onSelect: (id: string) => void; impact: Map<string, Impact>;
+  alerts: Alert[]; reports: StormReport[]; layers: WxLayers; setLayers: (f: (l: WxLayers) => WxLayers) => void;
+  hours: number; setHours: (h: number) => void;
+};
+
+function PropertyMap({ props, selected, onSelect, impact, alerts, reports, layers, setLayers, hours, setHours }: MapProps) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const group = useRef<L.MarkerClusterGroup | null>(null);
   const markers = useRef(new Map<string, L.Marker>());
   const fitted = useRef(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!el.current || map.current) return;
@@ -203,14 +289,21 @@ function PropertyMap({ props, selected, onSelect }: { props: Prop[]; selected: s
           const from = (at / n) * 360; at += k; return `${c} ${from}deg ${(at / n) * 360}deg`;
         }).join(', ');
         const size = n < 10 ? 34 : n < 50 ? 42 : 50;
+        const flag = kids.find((k) => (k.options as any).wxColor);
         return L.divIcon({
           className: 'pcluster', iconSize: [size, size],
-          html: `<div class="pcluster-ring" style="width:${size}px;height:${size}px;background:conic-gradient(${stops})"><span>${n}</span></div>`,
+          html: `<div class="pcluster-ring" style="width:${size}px;height:${size}px;background:conic-gradient(${stops})"><span>${n}</span>${
+            flag ? `<b class="wx-flag" style="background:${(flag.options as any).wxColor}" title="Weather alert">!</b>` : ''}</div>`,
         });
       },
     });
     m.addLayer(group.current);
+    // weather sits above the basemap and below the pins
+    m.createPane('wx').style.zIndex = '350';
+    m.createPane('wxwarn').style.zIndex = '360';
+    m.createPane('wxshapes').style.zIndex = '420';
     map.current = m;
+    setReady(true);
     const ro = new ResizeObserver(() => m.invalidateSize());
     ro.observe(el.current);
     return () => { ro.disconnect(); m.remove(); map.current = null; };
@@ -224,19 +317,24 @@ function PropertyMap({ props, selected, onSelect }: { props: Prop[]; selected: s
     const pts: L.LatLngExpression[] = [];
     for (const p of props) {
       if (p.lat == null || p.lng == null) continue;
+      const wx = impact.get(p.id);
+      const wxColor = wx?.alerts.length ? alertColor(wx.alerts[0]) : wx?.reports.length ? REPORT_STYLE[wx.reports[0].kind].color : null;
       const icon = L.divIcon({
         className: 'tpin', iconSize: [26, 34], iconAnchor: [13, 33], popupAnchor: [0, -30],
-        html: `<svg viewBox="0 0 26 34" width="26" height="34"><path d="M13 33s11-11.4 11-19.5A11 11 0 0 0 2 13.5C2 21.6 13 33 13 33z" fill="${pinColor(p)}" stroke="rgba(0,0,0,.45)" stroke-width="1.2"/><circle cx="13" cy="13.5" r="4.2" fill="#fff"/></svg>`,
+        html: `<svg viewBox="0 0 26 34" width="26" height="34"><path d="M13 33s11-11.4 11-19.5A11 11 0 0 0 2 13.5C2 21.6 13 33 13 33z" fill="${pinColor(p)}" stroke="rgba(0,0,0,.45)" stroke-width="1.2"/><circle cx="13" cy="13.5" r="4.2" fill="#fff"/></svg>${
+          wxColor ? `<b class="wx-flag" style="background:${wxColor}">!</b>` : ''}`,
       });
-      const mk = L.marker([p.lat, p.lng], { icon, title: p.name, pinColor: pinColor(p) } as L.MarkerOptions)
-        .bindTooltip(esc(p.name), { direction: 'top', offset: [0, -30] })
+      const tip = esc(p.name) + (wx?.alerts.length ? `<br/><span class="wx-tip">⚠ ${esc(wx.alerts.map((a) => a.event).join(', '))}</span>` : '')
+        + (wx?.reports.length ? `<br/><span class="wx-tip">${esc(reportMag(wx.reports[0]) || REPORT_STYLE[wx.reports[0].kind].label)} ${wx.reports[0].dist.toFixed(1)} mi away</span>` : '');
+      const mk = L.marker([p.lat, p.lng], { icon, title: p.name, pinColor: pinColor(p), wxColor } as L.MarkerOptions)
+        .bindTooltip(tip, { direction: 'top', offset: [0, -30] })
         .on('click', () => onSelect(p.id));
       markers.current.set(p.id, mk);
       g.addLayer(mk);
       pts.push([p.lat, p.lng]);
     }
     if (pts.length && !fitted.current) { m.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 9 }); fitted.current = true; }
-  }, [props, onSelect]);
+  }, [props, onSelect, impact]);
 
   // fly to the selected property
   useEffect(() => {
@@ -246,10 +344,182 @@ function PropertyMap({ props, selected, onSelect }: { props: Prop[]; selected: s
     }
   }, [selected]);
 
-  return <div className="props-map" ref={el} />;
+  // ----- radar: current frame, or the last hour on a loop -----
+  const radar = useRef<L.TileLayer[]>([]);
+  const [frame, setFrame] = useState(RADAR_STEPS.length - 1);
+  const [bucket, setBucket] = useState(() => Math.floor(Date.now() / 300e3));
+  useEffect(() => { const t = setInterval(() => setBucket(Math.floor(Date.now() / 300e3)), 60e3); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    radar.current.forEach((l) => l.remove()); radar.current = [];
+    if (!layers.radar) return;
+    const steps = layers.animate ? RADAR_STEPS : [0];
+    radar.current = steps.map((mins, i) => L.tileLayer(`${radarTiles(mins)}?v=${bucket}`, {
+      pane: 'wx', opacity: i === steps.length - 1 ? 0.7 : 0, maxNativeZoom: 12, maxZoom: 19,
+      attribution: 'Radar: NOAA NEXRAD via <a href="https://mesonet.agron.iastate.edu/" target="_blank" rel="noreferrer">Iowa Environmental Mesonet</a>',
+    }).addTo(m));
+    setFrame(steps.length - 1);
+  }, [ready, layers.radar, layers.animate, bucket]);
+  useEffect(() => {
+    if (!layers.radar || !layers.animate) return;
+    let i = RADAR_STEPS.length - 1, hold = 0;
+    const t = setInterval(() => {
+      if (i === RADAR_STEPS.length - 1 && hold++ < 3) return;   // linger on "now"
+      hold = 0; i = (i + 1) % RADAR_STEPS.length;
+      radar.current.forEach((l, k) => l.setOpacity(k === i ? 0.7 : 0));
+      setFrame(i);
+    }, 550);
+    return () => clearInterval(t);
+  }, [layers.radar, layers.animate, bucket]);
+
+  // ----- NWS warnings: full county/zone coverage image + clickable storm polygons -----
+  const warn = useRef<L.Layer[]>([]);
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    warn.current.forEach((l) => l.remove()); warn.current = [];
+    if (!layers.warnings) return;
+    const wms = L.tileLayer.wms(WARNINGS_WMS, {
+      layers: 'warnings_c,warnings_p', format: 'image/png', transparent: true, opacity: 0.45, pane: 'wxwarn',
+      attribution: 'Warnings: NWS via IEM', v: bucket,
+    } as L.WMSOptions).addTo(m);
+    const shapes = L.geoJSON(undefined, {
+      pane: 'wxshapes',
+      style: (f) => ({ color: alertColor(f!.properties), weight: 2.5, fillOpacity: 0.08, fillColor: alertColor(f!.properties) }),
+      onEachFeature: (f, layer) => layer.bindTooltip(
+        `<b>${esc(f.properties.event)}</b><br/>${esc(f.properties.areaDesc ?? '')}${f.properties.expires ? `<br/>until ${esc(until(f.properties.ends ?? f.properties.expires))}` : ''}`,
+        { sticky: true }),
+    }).addTo(m);
+    for (const a of alerts) if (a.geometry) shapes.addData({ type: 'Feature', geometry: a.geometry, properties: a } as any);
+    warn.current = [wms, shapes];
+  }, [ready, layers.warnings, alerts, bucket]);
+
+  // ----- local storm reports -----
+  const lsr = useRef<L.LayerGroup | null>(null);
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    lsr.current?.remove(); lsr.current = null;
+    if (!layers.reports) return;
+    const g = L.layerGroup([], { pane: 'wxshapes' });
+    for (const r of reports) {
+      const st = REPORT_STYLE[r.kind];
+      L.marker([r.lat, r.lng], {
+        pane: 'wxshapes', keyboard: false,
+        icon: L.divIcon({ className: 'lsr', iconSize: [18, 18], html: `<span style="background:${st.color}">${st.glyph}</span>` }),
+      }).bindTooltip(`<b>${esc(r.type)}</b>${reportMag(r) ? ` · ${esc(reportMag(r))}` : ''}<br/>${esc([r.city, r.state].filter(Boolean).join(', '))} · ${esc(ago(r.at))}${
+        r.remark ? `<br/><span class="wx-tip">${esc(r.remark.slice(0, 180))}</span>` : ''}`).addTo(g);
+    }
+    g.addTo(m);
+    lsr.current = g;
+  }, [ready, layers.reports, reports]);
+
+  const toggle = (k: keyof WxLayers) => setLayers((l) => ({ ...l, [k]: !l[k] }));
+  const mins = RADAR_STEPS[frame] ?? 0;
+  return (
+    <div className="props-mapwrap">
+      <div className="props-map" ref={el} />
+      <div className="wx-panel" onMouseDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+        <b className="small">Weather</b>
+        <label><input type="checkbox" checked={layers.radar} onChange={() => toggle('radar')} /> Radar</label>
+        {layers.radar && (
+          <div className="wx-sub">
+            <button className="ghost small" onClick={() => toggle('animate')}>{layers.animate ? '❚❚ Stop loop' : '▶ Last hour'}</button>
+            <span className="muted small">{layers.animate ? (mins ? `−${mins} min` : 'now') : 'live'}</span>
+          </div>
+        )}
+        {layers.radar && layers.animate && (
+          <div className="wx-scrub" aria-hidden>{RADAR_STEPS.map((s, i) => <i key={s} className={i === frame ? 'on' : ''} />)}</div>
+        )}
+        <label><input type="checkbox" checked={layers.warnings} onChange={() => toggle('warnings')} /> NWS warnings</label>
+        <label><input type="checkbox" checked={layers.reports} onChange={() => toggle('reports')} /> Storm reports</label>
+        {layers.reports && (
+          <div className="wx-sub">
+            <select value={hours} onChange={(e) => setHours(Number(e.target.value))} aria-label="Storm report window">
+              <option value={24}>Last 24 hours</option><option value={72}>Last 3 days</option><option value={168}>Last 7 days</option>
+            </select>
+          </div>
+        )}
+        {layers.reports && (
+          <div className="wx-legend small">
+            {(['hail', 'wind', 'tornado', 'flood'] as const).map((k) => (
+              <span key={k}><span className="lsr-dot" style={{ background: REPORT_STYLE[k].color }}>{REPORT_STYLE[k].glyph}</span>{REPORT_STYLE[k].label}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
-function PropertyDetail({ p, listName, onClose }: { p: Prop; listName: string; onClose: () => void }) {
+function PropertyWeather({ p, impact, hours }: { p: Prop; impact?: Impact; hours: number }) {
+  const [fc, setFc] = useState<Period[] | null>(null);
+  const [fcErr, setFcErr] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => {
+    setFc(null); setFcErr(false);
+    if (!p.nws_forecast_url) return;
+    let alive = true;
+    fetchForecast(p.nws_forecast_url).then((x) => alive && setFc(x)).catch(() => alive && setFcErr(true));
+    return () => { alive = false; };
+  }, [p.nws_forecast_url]);
+  const win = hours === 24 ? '24 hours' : hours === 72 ? '3 days' : '7 days';
+  return (
+    <div className="props-wx">
+      <b className="small">Weather</b>
+      {impact?.alerts.map((a) => (
+        <div key={a.id} className="wx-alert" style={{ borderLeftColor: alertColor(a) }}>
+          <div className="wx-alert-head">
+            <b>{a.event}</b>
+            <span className="muted small">{a.ends || a.expires ? `until ${until(a.ends ?? a.expires)}` : ''}</span>
+          </div>
+          {a.headline && <div className="small">{a.headline}</div>}
+          {(a.description || a.instruction) && (
+            open === a.id
+              ? <><p className="wx-text small">{a.description}{a.instruction ? `
+
+${a.instruction}` : ''}</p>
+                  <button className="link small" onClick={() => setOpen(null)}>Hide details</button></>
+              : <button className="link small" onClick={() => setOpen(a.id)}>Details</button>
+          )}
+        </div>
+      ))}
+      {!!impact?.reports.length && (
+        <div className="wx-reports">
+          <div className="muted small">Storm reports within {REPORT_RADIUS_MI} mi · last {win}</div>
+          <ul>
+            {impact.reports.slice(0, 8).map((r) => (
+              <li key={r.id} className="small">
+                <span className="lsr-dot" style={{ background: REPORT_STYLE[r.kind].color }}>{REPORT_STYLE[r.kind].glyph}</span>
+                <span><b>{r.type}</b>{reportMag(r) ? ` · ${reportMag(r)}` : ''} · {r.dist.toFixed(1)} mi · {ago(r.at)}
+                  {r.remark && <span className="muted"> · {r.remark}</span>}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {!impact && <div className="muted small">No active NWS alerts here, and no storm reports within {REPORT_RADIUS_MI} mi in the last {win}.</div>}
+      {fc && (
+        <div className="wx-fc">
+          {fc.slice(0, 6).map((x) => (
+            <div key={x.name} className="wx-fc-day" title={x.shortForecast}>
+              <span className="muted small">{x.name}</span>
+              {x.icon && <img src={x.icon} alt="" width={36} height={36} loading="lazy" />}
+              <b>{x.temperature}°</b>
+              <span className="small wx-fc-txt">{x.shortForecast}</span>
+              {x.probabilityOfPrecipitation?.value ? <span className="small muted">{x.probabilityOfPrecipitation.value}% precip</span> : null}
+            </div>
+          ))}
+        </div>
+      )}
+      {!fc && p.nws_forecast_url && !fcErr && <div className="muted small">Loading forecast…</div>}
+      {!p.nws_forecast_url && p.lat != null && <div className="muted small">Forecast appears after the next “Sync from Trello”.</div>}
+    </div>
+  );
+}
+
+function PropertyDetail({ p, listName, impact, hours, onClose }: { p: Prop; listName: string; impact?: Impact; hours: number; onClose: () => void }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
@@ -277,6 +547,7 @@ function PropertyDetail({ p, listName, onClose }: { p: Prop; listName: string; o
           {maps && <a className="small" href={maps} target="_blank" rel="noreferrer">Directions ↗</a>}
         </div>
       )}
+      {p.lat != null && <PropertyWeather p={p} impact={impact} hours={hours} />}
       {p.fields.length > 0 && (
         <dl className="props-fields">
           {p.fields.filter((f) => !/^address$/i.test(f.key)).map((f, i) => (

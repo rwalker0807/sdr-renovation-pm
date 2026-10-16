@@ -101,6 +101,41 @@ async function withLocation(c: any, row: ReturnType<typeof baseRow>, prev: any, 
            : { ...row, lat: null, lng: null, geo_source: null, geo_address: row.address };
 }
 
+// ---------- National Weather Service zone/county for a pin (for matching active alerts) ----------
+const NWS_UA = 'SDR-Renovation-PM/1.0 (rwalker@sdandr.com)';
+const nwsKey = (r: any) => (r.lat != null && r.lng != null ? `${Number(r.lat).toFixed(4)},${Number(r.lng).toFixed(4)}` : null);
+const NWS_EMPTY = { nws_zone: null, nws_county: null, nws_office: null, nws_forecast_url: null, nws_point: null };
+const ugc = (url: unknown) => (typeof url === 'string' ? url.split('/').pop() ?? null : null);
+
+async function nwsPoint(key: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await fetch(`https://api.weather.gov/points/${key}`, {
+      headers: { 'User-Agent': NWS_UA, Accept: 'application/geo+json' }, signal: AbortSignal.timeout(12000),
+    });
+    if (r.status === 404) return { ...NWS_EMPTY, nws_point: key };          // outside NWS coverage
+    if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 1500 * (attempt + 1))); continue; }
+    if (!r.ok) return null;
+    const p = (await r.json())?.properties ?? {};
+    return { nws_zone: ugc(p.forecastZone), nws_county: ugc(p.county), nws_office: p.cwa ?? p.gridId ?? null,
+      nws_forecast_url: p.forecast ?? null, nws_point: key };
+  }
+  return null;
+}
+
+/** Keep the stored NWS codes while the pin hasn't moved; otherwise look them up (if the budget allows). */
+async function withNws(row: any, prev: any, allowLookup: boolean) {
+  const key = nwsKey(row);
+  if (!key) return { ...row, ...NWS_EMPTY };
+  if (prev?.nws_point === key) return { ...row, nws_zone: prev.nws_zone, nws_county: prev.nws_county, nws_office: prev.nws_office,
+    nws_forecast_url: prev.nws_forecast_url, nws_point: prev.nws_point };
+  const keepOld = { nws_zone: prev?.nws_zone ?? null, nws_county: prev?.nws_county ?? null, nws_office: prev?.nws_office ?? null,
+    nws_forecast_url: prev?.nws_forecast_url ?? null, nws_point: prev?.nws_point ?? null };
+  if (!allowLookup) return { ...row, ...keepOld };
+  try { const z = await nwsPoint(key); return { ...row, ...(z ?? keepOld) }; }
+  catch { return { ...row, ...keepOld }; }
+}
+const PREV_COLS = 'id,lat,lng,geo_source,geo_address,closed,nws_zone,nws_county,nws_office,nws_forecast_url,nws_point';
+
 async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>) {
   const out: R[] = new Array(items.length);
   let i = 0;
@@ -126,8 +161,8 @@ export async function refreshProperty(trello: TrelloFn, admin: any, id: string) 
     throw e;
   }
   if (c.idBoard !== PROPS_BOARD) { await admin.from('client_properties').update({ closed: true }).eq('id', id); return null; }
-  const { data: prev } = await admin.from('client_properties').select('lat,lng,geo_source,geo_address').eq('id', id).maybeSingle();
-  const row = await withLocation(c, baseRow(c), prev, true);
+  const { data: prev } = await admin.from('client_properties').select(PREV_COLS).eq('id', id).maybeSingle();
+  const row = await withNws(await withLocation(c, baseRow(c), prev, true), prev, true);
   const { error } = await admin.from('client_properties').upsert(row);
   if (error) throw error;
   return row;
@@ -136,12 +171,13 @@ export async function refreshProperty(trello: TrelloFn, admin: any, id: string) 
 export async function syncProperties(trello: TrelloFn, admin: any) {
   const nLists = await syncPropertyLists(trello, admin);
   const cards = await trello('GET', `/boards/${PROPS_BOARD}/cards/open`, CARD_EXTRAS);
-  const { data: held } = await admin.from('client_properties').select('id,lat,lng,geo_source,geo_address,closed');
+  const { data: held } = await admin.from('client_properties').select(PREV_COLS);
   const prevById = new Map((held ?? []).map((r: any) => [r.id, r]));
   let nominatimLeft = 20; // Nominatim allows ~1 request/second; keep fallbacks to a handful per sync
   let lookupsLeft = 150;  // keep each run well inside the function time limit; the page re-runs until done
   let pending = 0;
-  const rows = await pool(cards, 8, async (c: any) => {
+  let nwsLeft = 150;      // weather.gov zone lookups per run (only for new or moved pins)
+  const located = await pool(cards, 8, async (c: any) => {
     const base = baseRow(c);
     const prev: any = prevById.get(c.id);
     const needsLookup = !coordsOf(c) && !!base.address && !(prev && prev.geo_address === base.address && prev.lat != null);
@@ -151,6 +187,14 @@ export async function syncProperties(trello: TrelloFn, admin: any) {
     const r = await withLocation(c, base, prev, allow, allowLookup);
     if (allow && allowLookup && needsLookup && r.lat == null) nominatimLeft--;
     return r;
+  });
+  const rows = await pool(located, 6, async (r: any) => {
+    const prev: any = prevById.get(r.id);
+    const key = nwsKey(r);
+    const needs = !!key && prev?.nws_point !== key;
+    const allow = !needs || nwsLeft-- > 0;
+    if (!allow) pending++;
+    return withNws(r, prev, allow);
   });
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await admin.from('client_properties').upsert(rows.slice(i, i + 200));
