@@ -5,6 +5,8 @@ import { attentionItems, budgetRollup, buyoutSummary, overallProgress, totals } 
 import { money, moneyShort, pct } from '../lib/format';
 import { ZAPIER_FORMS } from '../lib/config';
 import { AttentionPanel } from '../components/Tasks';
+import { EncircleTicker } from '../components/EncircleTicker';
+import { STATUS_OPTIONS } from '../lib/schema';
 import { Kpi, Meter, PageHead, Pill } from '../components/ui';
 import { JOB_TYPE_LABEL, jobType, type Row } from '../lib/schema';
 
@@ -14,11 +16,25 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
   const [statusFilter, setStatusFilter] = useState<'open' | 'all'>('open');
   const [typeFilter, setTypeFilter] = useState<string>('');
 
+  // job list sort: Job # or Status, click the header again to flip (remembered in this browser)
+  const [sort, setSort] = useState<{ key: 'code' | 'status' | 'name'; dir: 1 | -1 }>(() => {
+    try { return JSON.parse(localStorage.getItem('sdr.homeSort') ?? '') ?? { key: 'code', dir: 1 }; } catch { return { key: 'code', dir: 1 }; }
+  });
+  useEffect(() => { try { localStorage.setItem('sdr.homeSort', JSON.stringify(sort)); } catch { /* private mode */ } }, [sort]);
+  const sortBy = (key: 'code' | 'status' | 'name') => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: 1 }));
+  const arrow = (key: string) => (sort.key === key ? <span className="sort-ar">{sort.dir === 1 ? '▲' : '▼'}</span> : null);
+
   const projects = useMemo(() => {
-    let list = [...all.projects].sort((a, b) => String(a.code).localeCompare(String(b.code)));
+    const code = (a: Row, b: Row) => String(a.code ?? '').localeCompare(String(b.code ?? ''), undefined, { numeric: true });
+    const rank = (st?: string) => { const i = STATUS_OPTIONS.project.indexOf(st as string); return i < 0 ? 99 : i; };
+    let list = [...all.projects].sort((a, b) => {
+      const c = sort.key === 'status' ? rank(a.status) - rank(b.status) || code(a, b)
+        : sort.key === 'name' ? String(a.name ?? '').localeCompare(String(b.name ?? '')) : code(a, b);
+      return c * (sort.key === 'status' && rank(a.status) === rank(b.status) ? 1 : sort.dir);
+    });
     if (typeFilter) list = list.filter((p) => jobType(p) === typeFilter);
     return statusFilter === 'open' ? list.filter((p) => !['complete'].includes(p.status)) : list;
-  }, [all.projects, statusFilter, typeFilter]);
+  }, [all.projects, statusFilter, typeFilter, sort]);
 
   const perProject = useMemo(() => projects.map((p) => {
     const d = forProject(all, p.id);
@@ -55,6 +71,7 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
 
   return (
     <>
+      <EncircleTicker openProject={openProject} />
       <PageHead title="All projects">
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: 'auto' }} aria-label="Job type">
           <option value="">All job types</option>
@@ -81,7 +98,11 @@ export function Home({ openProject }: { openProject: (p: Row) => void }) {
           <div className="table-scroll">
             <table>
               <thead>
-                <tr><th>Job #</th><th>Project</th><th>Status</th></tr>
+                <tr>
+                  <th className="sortable" onClick={() => sortBy('code')} aria-sort={sort.key === 'code' ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>Job #{arrow('code')}</th>
+                  <th className="sortable" onClick={() => sortBy('name')} aria-sort={sort.key === 'name' ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>Project{arrow('name')}</th>
+                  <th className="sortable" onClick={() => sortBy('status')} aria-sort={sort.key === 'status' ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>Status{arrow('status')}</th>
+                </tr>
               </thead>
               <tbody>
                 {projects.map((p) => (

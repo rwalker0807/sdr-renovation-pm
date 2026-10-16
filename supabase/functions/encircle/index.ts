@@ -168,6 +168,129 @@ async function latestFor(claimId: string) {
   };
 }
 
+// ---------- home page feed: newest notes / photos / documents across every open job's claim ----------
+const claimOf = (p: any): string | null => {
+  const m = String(p.encircle_url ?? '').match(/claim\/(\d+)/);
+  if (m) return m[1];
+  const n = String(p.claim_number ?? '').trim();
+  return /^\d+$/.test(n) ? n : null;
+};
+const addedAt = (m: any) => m.primary_server_created ?? m.primary_client_created ?? null;
+const mediaKind = (t: string) => (/Video$/.test(t) ? 'video' : /(Pdf\w*|Report|Document)$/.test(t) && !/Picture/.test(t) ? 'documents' : 'photos');
+const firstLabel = (m: any) => (Array.isArray(m.labels) ? m.labels.find((x: unknown) => typeof x === 'string' && x.trim()) ?? null : null);
+
+async function peopleByEmail() {
+  const { data } = await admin.from('sdr_people').select('name,email');
+  return new Map((data ?? []).filter((x: any) => x.email).map((x: any) => [String(x.email).toLowerCase(), x.name]));
+}
+const authorName = (n: any, people: Map<string, string>) => {
+  const id = n.creator?.actor_identifier ?? null;
+  return id ? people.get(String(id).toLowerCase()) ?? String(id).split('@')[0] : null;
+};
+function noteFeedRow(n: any, cid: string, p: any, kind: 'note' | 'room_note', room: string | null, people: Map<string, string>) {
+  return { id: `note:${n.id}`, claim_id: cid, project_id: p?.id ?? null, kind, title: n.title ?? null,
+    body: n.text ? String(n.text).slice(0, 400) : null, room, count: null, author: authorName(n, people), happened_at: when(n) };
+}
+
+/** Room notes newer than `since` (newest few per room; capped for very large claims). */
+async function roomNotesSince(cid: string, since: string, cap = 150) {
+  const structures = await all(`/v1/property_claims/${cid}/structures`);
+  const rooms = (await pool(structures, 4, async (s: any) => {
+    const rs = await all(`/v1/property_claims/${cid}/structures/${s.id}/rooms`);
+    return rs.map((r: any) => ({ sid: s.id, rid: r.id, label: [s.name, r.name].filter(Boolean).join(' · ') || null }));
+  })).flat().slice(0, cap);
+  const found: { note: any; room: string | null }[] = [];
+  await pool(rooms, 8, async (r) => {
+    try {
+      const j = await enc(`/v2/property_claims/${cid}/structures/${r.sid}/rooms/${r.rid}/notes`, { order: 'newest', limit: '3' });
+      for (const n of j?.list ?? []) if (when(n) && when(n) > since) found.push({ note: n, room: r.label });
+    } catch (e) { if (e instanceof EncircleAuthError) throw e; }
+  });
+  return found;
+}
+
+async function feedSweep(force = false) {
+  const { data: ok } = await admin.rpc('encircle_claim_sweep', { min_gap: force ? '1 minute' : '10 minutes' });
+  if (!ok) return { skipped: true };
+  const started = Date.now();
+  const { data: projs } = await admin.from('projects').select('id,code,name,encircle_url,claim_number,status');
+  const claims = new Map<string, any>();
+  for (const p of projs ?? []) { const c = claimOf(p); if (c && p.status !== 'complete' && !claims.has(c)) claims.set(c, p); }
+  const { data: st } = await admin.from('encircle_feed_state').select('*');
+  const state = new Map((st ?? []).map((x: any) => [x.claim_id, x]));
+  const people = await peopleByEmail();
+  const since0 = new Date(Date.now() - 3 * 864e5).toISOString();     // first look at a claim: last 3 days only
+  let fullWalks = 2;                                                  // claims with no media index yet: walk a few per sweep
+  const rows: any[] = []; const next: any[] = []; let errors = 0, deferred = 0;
+
+  await pool([...claims.entries()], 5, async ([cid, p]) => {
+    const s: any = state.get(cid) ?? {};
+    const n: any = { claim_id: cid, last_note_at: s.last_note_at ?? since0, last_media_at: s.last_media_at ?? since0,
+      rooms_checked_at: s.rooms_checked_at ?? null, checked_at: new Date().toISOString() };
+    try {
+      const j = await enc(`/v2/property_claims/${cid}/notes`, { order: 'newest', limit: '10' });
+      if (j === null) { next.push(n); return; }                       // claim not found
+      for (const note of j.list ?? []) {
+        const at = when(note);
+        if (!at || at <= (s.last_note_at ?? since0)) continue;
+        rows.push(noteFeedRow(note, cid, p, 'note', null, people));
+        if (at > n.last_note_at) n.last_note_at = at;
+      }
+      const { data: idx } = await admin.from('encircle_media_index').select('claim_id').eq('claim_id', cid).maybeSingle();
+      if (idx || fullWalks-- > 0) {
+        const { fresh } = await updateIndex(cid);
+        const since = s.last_media_at ?? since0;
+        const items = [...fresh.values()].flat()
+          .filter((m) => addedAt(m) && addedAt(m) > since && !/VideoFrame$/.test(m.source?.type ?? ''))
+          .sort((a, b) => String(addedAt(a)).localeCompare(String(addedAt(b))));
+        // group uploads: same kind + room, no more than 30 minutes apart
+        const open = new Map<string, { row: any; last: number }>();
+        for (const m of items) {
+          const kind = mediaKind(m.source?.type ?? ''); const room = firstLabel(m); const key = kind + '|' + (room ?? '');
+          const t = new Date(addedAt(m)).getTime(); const g = open.get(key);
+          if (g && t - g.last <= 30 * 60e3) { g.row.count++; g.row.happened_at = addedAt(m); g.last = t; continue; }
+          const row = { id: `media:${cid}:${m.id ?? m.download_uri?.split('?')[0]?.split('/').pop() ?? addedAt(m)}`, claim_id: cid, project_id: p.id,
+            kind, title: null, body: null, room, count: 1, author: null, happened_at: addedAt(m) };
+          rows.push(row); open.set(key, { row, last: t });
+        }
+        if (items.length) n.last_media_at = addedAt(items[items.length - 1]);
+        // room notes: only on claims with fresh activity, two per sweep, oldest-checked first
+        if (items.length) n.active = true;
+      } else deferred++;
+    } catch (e) {
+      if (e instanceof EncircleAuthError) throw e;
+      errors++; console.error('feed', cid, String(e));
+    }
+    next.push(n);
+  });
+
+  const roomTargets = next.filter((n) => n.active || !n.rooms_checked_at)
+    .sort((a, b) => String(a.rooms_checked_at ?? '').localeCompare(String(b.rooms_checked_at ?? ''))).slice(0, 2);
+  for (const n of roomTargets) {
+    if (Date.now() - started > 90e3) break;
+    try {
+      const since = n.rooms_checked_at ?? since0;
+      for (const f of await roomNotesSince(n.claim_id, since)) rows.push(noteFeedRow(f.note, n.claim_id, claims.get(n.claim_id), 'room_note', f.room, people));
+      n.rooms_checked_at = new Date().toISOString();
+    } catch (e) { if (e instanceof EncircleAuthError) throw e; errors++; }
+  }
+
+  const clean = rows.map((r) => ({ id: r.id, claim_id: r.claim_id, project_id: r.project_id, kind: r.kind, title: r.title, body: r.body,
+    room: r.room, count: r.count, author: r.author, happened_at: r.happened_at }));
+  const uniq = [...new Map(clean.map((r) => [r.id, r])).values()];
+  for (let i = 0; i < uniq.length; i += 200) {
+    const { error } = await admin.from('encircle_feed').upsert(uniq.slice(i, i + 200), { onConflict: 'id' });
+    if (error) throw error;
+  }
+  const { error: se } = await admin.from('encircle_feed_state').upsert(next.map(({ active: _a, ...x }) => x));
+  if (se) throw se;
+  await admin.from('encircle_feed').delete().lt('happened_at', new Date(Date.now() - 30 * 864e5).toISOString());
+  const summary = { claims: claims.size, added: uniq.length, errors, deferred, rooms: roomTargets.map((r) => r.claim_id), ms: Date.now() - started };
+  await admin.from('encircle_sweep').update({ summary }).eq('id', 1);
+  console.log(JSON.stringify({ diag: 'feed', ...summary }));
+  return summary;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -176,6 +299,10 @@ Deno.serve(async (req) => {
 
   let p: any = {};
   try { p = await req.json(); } catch { return json({ error: 'Bad JSON' }, 400); }
+  if (p.action === 'feed_sweep') {
+    try { return json({ ok: true, ...(await feedSweep(!!p.force)) }); }
+    catch (e) { console.error(e); return json({ error: String((e as Error).message ?? e) }, 502); }
+  }
   if (p.action !== 'latest_notes') return json({ error: 'Unknown action' }, 400);
   const ids = [...new Set((p.claim_ids ?? []).map((x: unknown) => String(x).trim()).filter((x: string) => /^\d+$/.test(x)))].slice(0, 10) as string[];
 
@@ -185,6 +312,17 @@ Deno.serve(async (req) => {
     if (rows.length) {
       const { error } = await admin.from('encircle_latest_note').upsert(rows);
       if (error) throw error;
+      // the newest note also goes on the home page feed (if it's from the last week)
+      const week = new Date(Date.now() - 7 * 864e5).toISOString();
+      const fresh = rows.filter((r) => r.note_id && r.created_at && r.created_at > week);
+      if (fresh.length) {
+        const { data: projs } = await admin.from('projects').select('id,encircle_url,claim_number');
+        const pid = new Map((projs ?? []).map((x: any) => [claimOf(x), x.id]));
+        await admin.from('encircle_feed').upsert(fresh.map((r) => ({
+          id: `note:${r.note_id}`, claim_id: r.claim_id, project_id: pid.get(r.claim_id) ?? null, kind: r.note_scope === 'room' ? 'room_note' : 'note',
+          title: r.title, body: r.body ? String(r.body).slice(0, 400) : null, room: r.room, count: null, author: r.author, happened_at: r.created_at,
+        })), { onConflict: 'id', ignoreDuplicates: true });
+      }
     }
     return json({ ok: true, notes: rows });
   } catch (e) {
