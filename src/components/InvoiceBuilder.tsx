@@ -45,6 +45,13 @@ export function InvoiceBuilder({ project, onClose, kind = 'invoice' }: { project
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (!invTouched) setInvNo(numFor(date)); }, [date, job, invTouched]);
+  // the description boxes use the invoice's own body font, so they wrap where the PDF wraps
+  useEffect(() => {
+    if (document.fonts && ![...document.fonts].some((f) => f.family.replace(/["']/g, '') === 'SDR Invoice Sans')) {
+      const ff = new FontFace('SDR Invoice Sans', `url(${import.meta.env.BASE_URL}invoice/LiberationSans-Regular.ttf)`);
+      ff.load().then((x) => document.fonts.add(x)).catch(() => { /* falls back to Arial, same metrics */ });
+    }
+  }, []);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
@@ -136,7 +143,7 @@ export function InvoiceBuilder({ project, onClose, kind = 'invoice' }: { project
               <div className="inv-lines-head"><span>Description</span><span>Amount</span><span /></div>
               {lines.map((l, i) => (
                 <div key={i} className="inv-line">
-                  <textarea rows={2} value={l.desc} onChange={(e) => setLine(i, 'desc', e.target.value)}
+                  <textarea className="inv-desc" rows={2} value={l.desc} onChange={(e) => setLine(i, 'desc', e.target.value)}
                     placeholder={i === 0 ? (prop ? 'Remove and replace damaged drywall in unit 302 bathroom ceiling, prime and paint to match.' : 'Water loss repairs completed through **10/14/2026** at Link Caylx unit 302.') : 'Another line item'} aria-label={`Line ${i + 1} description`} />
                   <span className="inv-amt"><span>$</span>
                     <input inputMode="decimal" value={l.amount} onChange={(e) => setLine(i, 'amount', e.target.value)} placeholder="0.00"
@@ -151,7 +158,7 @@ export function InvoiceBuilder({ project, onClose, kind = 'invoice' }: { project
                 <button type="button" onClick={() => setLines((ls) => [...ls, { desc: '', amount: '' }])}>+ Add line item</button>
                 <span className="inv-total"><span>TOTAL</span><b>$ {money(total)}</b></span>
               </div>
-              <p className="muted small">Wrap a date in **double stars** to print it bold. Lines without an amount print as scope text only.</p>
+              <p className="muted small">Text prints exactly as it wraps in the box, including your own line breaks. Wrap a date in **double stars** to print it bold. Lines without an amount print as scope text only.</p>
             </div>
 
             <label className="field"><span>Note (italic, under the last line item{prop ? ', optional' : ''})</span>

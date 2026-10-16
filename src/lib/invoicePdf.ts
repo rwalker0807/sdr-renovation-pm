@@ -26,8 +26,12 @@ const BLACK = rgb(0, 0, 0);
 const X0 = 39.72;
 const TL = 38.4, TR = 525.7, TD = 424.1;
 const DESC_WRAP = 335;
-const LINE = 18.6;
-export const DESC_LIMIT = 530;   // text below this runs into the Equipment rows
+const BODY_LINE = 11.6;          // single-spaced lines inside a line item, as typed in the form
+const ITEM_GAP = 7;              // small gap between line items
+export const DESC_LIMIT = 527;   // last body line must sit above the Equipment row
+/** wrap width of the description column, exported so the form's text box can wrap identically */
+export const DESC_WRAP_PT = 335;
+export const BODY_FONT_PT = 9.34;
 
 const Y = (top: number) => H - top;
 export const money = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -147,24 +151,32 @@ export async function buildInvoicePdf(spec: InvoiceSpec): Promise<InvoiceResult>
 
   const amt = (top: number, v: number) => { text('$', 429.24, top, f.R); right(money(v), 520.72, top, f.R); };
 
-  // Description body
-  let base = 319.44;
+  // Description body: each line item exactly as typed (its own line breaks kept, blank lines kept),
+  // wrapped at the column width, single-spaced, with a small gap between items.
+  let base = 304;
+  let last = 0;                                   // baseline of the last line drawn
   const lines = spec.lines.filter((l) => l.desc.trim() || l.amount != null);
-  for (const item of lines) {
-    const wrapped = wrapRuns(item.desc || ' ', DESC_WRAP, f);
-    wrapped.forEach((ln, i) => {
-      if (base <= DESC_LIMIT + LINE) {
-        let x = X0;
-        for (const [w, b] of ln) { const font = b ? f.B : f.R; text(w, x, base, font); x += font.widthOfTextAtSize(w, FS); }
-        if (i === 0 && item.amount != null && Number.isFinite(item.amount)) amt(base, item.amount);
+  lines.forEach((item, k) => {
+    if (k > 0) base += ITEM_GAP;
+    const paras = (item.desc || ' ').replace(/\r/g, '').replace(/\s+$/, '').split('\n');
+    let first = true;
+    for (const para of paras) {
+      const wrapped = para.trim() ? wrapRuns(para, DESC_WRAP, f) : [[]];   // empty line -> blank line
+      for (const ln of wrapped) {
+        if (base <= DESC_LIMIT) {
+          let x = X0;
+          for (const [w, b] of ln) { const font = b ? f.B : f.R; text(w, x, base, font); x += font.widthOfTextAtSize(w, FS); }
+          if (first && item.amount != null && Number.isFinite(item.amount)) amt(base, item.amount);
+        }
+        first = false; last = base; base += BODY_LINE;
       }
-      base += LINE;
-    });
-    base += LINE;   // blank row between line items (as on SDR's Excel invoices)
-  }
-  for (const n of spec.notes.filter((x) => x.trim())) {
-    if (base <= DESC_LIMIT + LINE) text(n, 52.93, base, f.I);
-    base += LINE;
+    }
+  });
+  const notes = spec.notes.filter((x) => x.trim());
+  if (notes.length && lines.length) base += BODY_LINE;   // one blank line before the note
+  for (const n of notes) {
+    if (base <= DESC_LIMIT) text(n, 52.93, base, f.I);
+    last = base; base += BODY_LINE;
   }
 
   ['Equipment', 'Supervision', 'Protection'].forEach((t, i) => text(t, X0, 541.8 + i * 18.24, f.R));
@@ -192,7 +204,7 @@ export async function buildInvoicePdf(spec: InvoiceSpec): Promise<InvoiceResult>
     centred('THANK YOU FOR YOUR BUSINESS!', 282.25, 698.89, f.B, 9.36);
   }
 
-  return { bytes: await doc.save(), total, descEnd: base };
+  return { bytes: await doc.save(), total, descEnd: last };
 }
 
 /** "September 30, 2026" */

@@ -522,14 +522,20 @@ button.small { padding: 3px 8px; font-size: 12px; }
 
 /* ---- client invoice builder ---- */
 .ok-text { color: var(--good); }
-.drawer.invoice-drawer { width: min(1180px, 100%); }
-.inv-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 1fr) minmax(0, 1.05fr); }
+.drawer.invoice-drawer { width: min(1320px, 100%); }
+.inv-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 720px) minmax(0, 1fr); }
 .inv-form { overflow-y: auto; padding: 16px; display: grid; gap: 12px; align-content: start; border-right: 1px solid var(--line); }
 .inv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .inv-lines { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
-.inv-lines-head, .inv-line { display: grid; grid-template-columns: 1fr 130px 30px; gap: 8px; align-items: start; }
+.inv-lines-head, .inv-line { display: grid; grid-template-columns: auto minmax(96px, 1fr) 30px; gap: 8px; align-items: start; }
 .inv-lines-head { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .inv-line textarea { resize: vertical; min-height: 54px; }
+/* the description box wraps exactly like the PDF column: same font metrics (Liberation Sans = Arial),
+   width = 335pt at 9.34pt, scaled to 13px type */
+.inv-line textarea.inv-desc { box-sizing: content-box; width: calc(335px * 13 / 9.34); max-width: calc(100% - 18px);
+  font-family: 'SDR Invoice Sans', 'Liberation Sans', Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.3;
+  padding: 7px 8px; resize: vertical; overflow-wrap: break-word; }
+.inv-lines-head > span:first-child { width: calc(335px * 13 / 9.34 + 18px); }
 .inv-amt { display: flex; align-items: center; gap: 4px; }
 .inv-amt input { text-align: right; font-variant-numeric: tabular-nums; }
 .inv-amt input.bad { border-color: var(--bad); }
