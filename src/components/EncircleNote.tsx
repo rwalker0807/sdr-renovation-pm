@@ -10,7 +10,10 @@ export function encircleClaimId(p?: Row | null): string | null {
   return /^\d{5,}$/.test(c) ? c : null;
 }
 
-type Note = { claim_id: string; title: string | null; body: string | null; author: string | null; created_at: string | null; checked_at: string; error: string | null };
+type Photo = { url: string; filename: string | null; taken: string; type: string | null; labels: string[] };
+type Note = { claim_id: string; title: string | null; body: string | null; author: string | null; created_at: string | null; checked_at: string; error: string | null;
+  photos?: Photo[]; photos_total?: number; photo_day?: string | null };
+const PHOTO_KIND: Record<string, string> = { ClaimRoomPictureNotePicture: 'Room photo note', ClaimRoomAfterPicture: 'Room photo', ClaimSketchPictureNodePicture: 'Sketch photo', ClaimPictureDocument: 'Scanned document' };
 const STALE_MS = 10 * 60 * 1000;
 
 function ago(iso: string) {
@@ -31,6 +34,7 @@ export function EncircleNote({ project }: { project?: Row | null }) {
   const [state, setState] = useState<'idle' | 'loading' | 'not_configured' | 'error'>('idle');
   const [err, setErr] = useState('');
   const [open, setOpen] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
 
   const refresh = async () => {
     setState('loading');
@@ -79,6 +83,21 @@ export function EncircleNote({ project }: { project?: Row | null }) {
           {note.title && <div className="enote-title">{note.title}</div>}
           {note.body && <p className={`enote-body ${long && !open ? 'clamped' : ''}`}>{note.body}</p>}
           {long && <button className="link small" onClick={() => setOpen((o) => !o)}>{open ? 'Show less' : 'Show full note'}</button>}
+          {!!note.photos?.length && (
+            <div className="enote-photos">
+              <div className="small muted">
+                Photos added to the claim that day ({note.photos_total ?? note.photos.length})
+                {(note.photos_total ?? 0) > note.photos.length && <> · showing the latest {note.photos.length} · <a href={project?.encircle_url} target="_blank" rel="noreferrer">see all in Encircle</a></>}
+              </div>
+              <div className="enote-grid">
+                {note.photos.map((ph, i) => (
+                  <button key={ph.url} className="enote-thumb" onClick={() => setViewing(i)} title={[PHOTO_KIND[ph.type ?? ''], new Date(ph.taken).toLocaleTimeString([], { timeStyle: 'short' })].filter(Boolean).join(' · ')}>
+                    <img src={ph.url} alt={ph.filename ?? 'Encircle photo'} loading="lazy" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       ) : note?.error ? (
         <p className="muted small">{note.error} (claim {claimId}).</p>
@@ -89,6 +108,37 @@ export function EncircleNote({ project }: { project?: Row | null }) {
       ) : (
         <p className="muted small">No notes on this claim yet.</p>
       )}
+      {viewing != null && note?.photos?.[viewing] && (
+        <PhotoViewer photos={note.photos} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />
+      )}
     </section>
+  );
+}
+
+function PhotoViewer({ photos, index, onIndex, onClose }: { photos: Photo[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
+  const ph = photos[index];
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowRight') onIndex((index + 1) % photos.length);
+      if (e.key === 'ArrowLeft') onIndex((index - 1 + photos.length) % photos.length);
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [index, photos.length, onIndex, onClose]);
+  return (
+    <div className="lightbox" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <button className="lb-close" onClick={onClose} aria-label="Close">✕</button>
+      {photos.length > 1 && <button className="lb-nav prev" onClick={() => onIndex((index - 1 + photos.length) % photos.length)} aria-label="Previous">‹</button>}
+      <figure>
+        <img src={ph.url} alt={ph.filename ?? 'Encircle photo'} />
+        <figcaption className="small">
+          {[PHOTO_KIND[ph.type ?? ''], new Date(ph.taken).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }), ...(ph.labels ?? [])].filter(Boolean).join(' · ')}
+          <span className="muted"> · {index + 1} of {photos.length}</span>
+          {' · '}<a href={ph.url} target="_blank" rel="noreferrer">Open full size ↗</a>
+        </figcaption>
+      </figure>
+      {photos.length > 1 && <button className="lb-nav next" onClick={() => onIndex((index + 1) % photos.length)} aria-label="Next">›</button>}
+    </div>
   );
 }

@@ -383,3 +383,17 @@ button.small { padding: 3px 8px; font-size: 12px; }
 .encircle-note .enote-title { font-weight: 600; margin-bottom: 4px; }
 .encircle-note .enote-body { margin: 0; white-space: pre-wrap; line-height: 1.5; }
 .encircle-note .enote-body.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+
+.enote-photos { margin-top: 12px; display: grid; gap: 6px; }
+.enote-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.enote-thumb { padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; aspect-ratio: 1; background: var(--surface-2); cursor: zoom-in; }
+.enote-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.enote-thumb:hover { border-color: var(--accent); }
+.lightbox { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.88); display: grid; grid-template-columns: 56px 1fr 56px; align-items: center; padding: 24px 8px; }
+.lightbox figure { grid-column: 2; margin: 0; display: grid; gap: 8px; justify-items: center; max-height: 100%; }
+.lightbox figure img { max-width: 100%; max-height: calc(100vh - 110px); object-fit: contain; border-radius: 6px; }
+.lightbox figcaption { color: #e6e8eb; text-align: center; }
+.lightbox figcaption a { color: #9cc3ff; }
+.lb-close { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,.12); color: #fff; border: 0; font-size: 18px; width: 38px; height: 38px; border-radius: 50%; }
+.lb-nav { background: rgba(255,255,255,.1); color: #fff; border: 0; font-size: 32px; width: 44px; height: 64px; border-radius: 8px; justify-self: center; }
+.lb-nav.prev { grid-column: 1; } .lb-nav.next { grid-column: 3; }
