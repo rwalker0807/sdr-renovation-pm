@@ -43,6 +43,22 @@ export function makeCrewDb(source: DataSource) {
   });
   return {
     doc,
+    /** Open cards on the Raleigh Current Jobs board, with their list name. */
+    async trelloCards() {
+      const [l, c] = await Promise.all([
+        client.from('trello_lists').select('id,name'),
+        client.from('trello_cards').select('id,name,list_id').eq('closed', false),
+      ]);
+      if (l.error || c.error) throw l.error || c.error;
+      const names = new Map((l.data ?? []).map((x: any) => [x.id, x.name]));
+      return (c.data ?? []).map((x: any) => ({ id: x.id, name: x.name, list: names.get(x.list_id) ?? '' }));
+    },
+    onTrelloChange(cb: () => void) {
+      const ch = client.channel(`crew-trello-${channels.length}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'trello_cards' }, () => cb())
+        .subscribe();
+      channels.push(ch);
+    },
     close() { channels.splice(0).forEach((ch) => client.removeChannel(ch)); },
   };
 }

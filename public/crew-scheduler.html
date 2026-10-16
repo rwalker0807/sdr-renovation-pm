@@ -1388,6 +1388,36 @@
   }
   .confirm-btn.danger:hover{background:#c53531;}
 
+  #personAddOverlay{z-index:1100;}
+  .add-person-btn{
+    width:100%;
+    margin-top:6px;
+    padding:7px 8px;
+    border:none;
+    border-radius:6px;
+    background:var(--accent);
+    color:white;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .add-person-btn:hover{background:#3b7be6;}
+  .person-form label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;}
+  .person-form input, .person-form select{
+    width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;background:var(--bg);
+  }
+  .person-form .role-toggle{display:flex;gap:6px;}
+  .person-form .role-toggle button{
+    flex:1;padding:9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;
+  }
+  .person-form .role-toggle button.on.laborer{border-color:var(--accent);color:var(--accent);background:var(--accent-light);}
+  .person-form .role-toggle button.on.super{border-color:var(--super);color:var(--super);background:var(--super-light);}
+  .person-form .assign-note{font-size:12px;color:var(--muted);margin-top:10px;}
+  .person-form .form-err{font-size:12px;color:var(--danger);margin-top:8px;min-height:15px;}
+  .confirm-btn.primary{background:var(--accent);color:white;}
+  .confirm-btn.primary:hover{background:#3b7be6;}
+  .sync-note{font-size:11px;color:var(--muted);padding:6px 12px 0;}
+
   .toast{
     position:fixed;
     bottom:24px;
@@ -1425,7 +1455,9 @@
         <button class="io-btn" onclick="exportData()">Export</button>
         <button class="io-btn" onclick="triggerImport()">Import</button>
       </div>
+      <button class="add-person-btn" onclick="openAddPerson()">+ Add Person</button>
     </div>
+    <div class="sync-note" id="trelloSyncNote" style="display:none"></div>
     <div class="sidebar-hint">Drag a name or vehicle onto a job to assign it</div>
     <div class="roster" id="rosterContainer"></div>
   </div>
@@ -1569,6 +1601,26 @@
   </div>
 </div>
 
+<!-- ADD PERSON MODAL -->
+<div class="modal-overlay" id="personAddOverlay" onclick="if(event.target===this) closeAddPerson();">
+  <div class="modal-panel confirm-panel person-form">
+    <div class="modal-title">Add Person</div>
+    <label for="apName">Name</label>
+    <input type="text" id="apName" placeholder="First and last name" autocomplete="off">
+    <label>Role</label>
+    <div class="role-toggle">
+      <button type="button" class="laborer" id="apRoleLaborer" onclick="setAddPersonRole('laborer')">Laborer</button>
+      <button type="button" class="super" id="apRoleSuper" onclick="setAddPersonRole('super')">Superintendent</button>
+    </div>
+    <div class="assign-note" id="apAssignNote"></div>
+    <div class="form-err" id="apErr"></div>
+    <div class="confirm-actions">
+      <button class="confirm-btn cancel" onclick="closeAddPerson()">Cancel</button>
+      <button class="confirm-btn primary" onclick="saveAddPerson()">Add Person</button>
+    </div>
+  </div>
+</div>
+
 <!-- JOB DETAIL MODAL -->
 <div class="modal-overlay" id="jobModalOverlay" onclick="if(event.target===this) closeJobModal();">
   <div class="modal-panel">
@@ -1690,7 +1742,7 @@ function proceedConfirm(){
 }
 
 document.addEventListener('keydown', (e)=>{
-  if(e.key === 'Escape') cancelConfirm();
+  if(e.key === 'Escape'){ cancelConfirm(); closeAddPerson(); }
 });
 
 /* ---------- Data model ----------
@@ -1922,6 +1974,11 @@ async function initApp(){
   }
 
   renderAll();
+
+  if(dbHandle && typeof dbHandle.trelloCards === 'function'){
+    await syncFromTrello();
+    if(typeof dbHandle.onTrelloChange === 'function') dbHandle.onTrelloChange(scheduleTrelloSync);
+  }
 }
 
 function uid(){
@@ -2276,6 +2333,7 @@ function buildEmployeeAddForm(){
   nameInput.type = 'text';
   nameInput.id = 'newEmpName';
   nameInput.placeholder = 'Employee name';
+  nameInput.onkeydown = (e)=>{ if(e.key === 'Enter') addEmployee(); };
   form.appendChild(nameInput);
 
   const roleSelect = document.createElement('select');
@@ -2526,6 +2584,141 @@ function addEmployee(){
   nameInput.value = '';
   saveState();
   renderAll();
+}
+
+/* ---------- Add Person (sidebar button + "Add new person" in a job's dropdowns) ---------- */
+
+let addPersonCtx = null; // {jobId, role, asSuper}
+
+function openAddPerson(ctx){
+  addPersonCtx = ctx || {};
+  const job = addPersonCtx.jobId ? state.jobs.find(j=>j.id===addPersonCtx.jobId) : null;
+  document.getElementById('apName').value = '';
+  document.getElementById('apErr').textContent = '';
+  document.getElementById('apAssignNote').textContent = job
+    ? (addPersonCtx.asSuper ? 'Will be set as superintendent on ' : 'Will also be assigned to ') + (job.jobNumber ? '#' + job.jobNumber + ' ' : '') + job.name
+    : '';
+  setAddPersonRole(addPersonCtx.role || 'laborer');
+  document.getElementById('personAddOverlay').classList.add('open');
+  setTimeout(()=> document.getElementById('apName').focus(), 0);
+}
+
+function setAddPersonRole(role){
+  if(!addPersonCtx) addPersonCtx = {};
+  addPersonCtx.role = role;
+  document.getElementById('apRoleLaborer').classList.toggle('on', role === 'laborer');
+  document.getElementById('apRoleSuper').classList.toggle('on', role === 'super');
+}
+
+function closeAddPerson(){
+  addPersonCtx = null;
+  const o = document.getElementById('personAddOverlay');
+  if(o) o.classList.remove('open');
+}
+
+function saveAddPerson(){
+  const ctx = addPersonCtx || {};
+  const name = document.getElementById('apName').value.trim().replace(/\s+/g, ' ');
+  const err = document.getElementById('apErr');
+  if(!name){ err.textContent = 'Enter a name.'; return; }
+  if(state.employees.some(e => e.name.toLowerCase() === name.toLowerCase())){
+    err.textContent = name + ' is already on the roster.'; return;
+  }
+  const emp = {id: uid(), name, role: ctx.role === 'super' ? 'super' : 'laborer'};
+  state.employees.push(emp);
+  const job = ctx.jobId ? state.jobs.find(j=>j.id===ctx.jobId) : null;
+  if(job){
+    if(ctx.asSuper) job.superintendentId = emp.id;
+    else if(!job.assigned.includes(emp.id)) job.assigned.push(emp.id);
+  }
+  closeAddPerson();
+  saveState();
+  renderAll();
+  showToast('Added ' + name + (job ? ' to ' + (job.jobNumber ? '#' + job.jobNumber : job.name) : ''));
+}
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' && document.getElementById('personAddOverlay').classList.contains('open')){
+    e.preventDefault(); saveAddPerson();
+  }
+});
+
+/* ---------- Live jobs from the Trello "Raleigh Current Jobs" board ----------
+   Supplied by the tracker (window.parent.sdrCrewDb.trelloCards). Cards are matched to
+   jobs by Trello card id, or by job number the first time. A job's status only changes
+   when its card moves to a different list, so edits made here stick until then. */
+
+const TRELLO_LIST_MAP = {
+  'Current Job List': {status: 'ongoing', hold: false},
+  'Ready to Start':   {status: 'upcoming', hold: false},
+  'Jobs on Pause':    {status: 'ongoing', hold: true}
+};
+const TRELLO_DONE_LISTS = ['Job Completed', 'Ready to Invoice', 'Ready to Invoice Venture'];
+
+function parseTrelloCardName(name){
+  const m = String(name || '').match(/^\s*#\s*([A-Za-z]?\d[\w-]*)\s*:?\s*(.*)$/);
+  if(m) return {jobNumber: m[1], title: m[2].replace(/\s+/g, ' ').trim() || m[1]};
+  return {jobNumber: '', title: String(name || '').trim()};
+}
+
+// Trello ids start with the card's creation time (seconds, hex)
+function trelloCreatedKey(cardId){
+  const t = parseInt(String(cardId).slice(0, 8), 16);
+  return t ? fmtDate(new Date(t * 1000)) : null;
+}
+
+let trelloSyncing = false, trelloSyncTimer = null;
+
+function scheduleTrelloSync(){
+  if(trelloSyncTimer) clearTimeout(trelloSyncTimer);
+  trelloSyncTimer = setTimeout(syncFromTrello, 1500);
+}
+
+async function syncFromTrello(){
+  if(!dbHandle || typeof dbHandle.trelloCards !== 'function' || !state || trelloSyncing) return;
+  trelloSyncing = true;
+  try{
+    let cards;
+    try{ cards = await dbHandle.trelloCards(); }catch(e){ console.error('trello read failed', e); return; }
+    let added = 0, changed = 0;
+    const byCard = new Map(state.jobs.filter(j => j.trelloCardId).map(j => [j.trelloCardId, j]));
+    cards.forEach(c=>{
+      const {jobNumber, title} = parseTrelloCardName(c.name);
+      const map = TRELLO_LIST_MAP[c.list];
+      let job = byCard.get(c.id) || (jobNumber ? state.jobs.find(j => !j.trelloCardId && j.jobNumber === jobNumber) : null);
+      if(!job){
+        if(!map) return; // only bring in jobs from the three working lists
+        job = {
+          id: uid(), jobNumber, name: title,
+          startDate: map.status === 'ongoing' ? trelloCreatedKey(c.id) : null, duration: 1,
+          superintendentId: null, assigned: [], assignedVehicles: [], shifts: {},
+          hideFromCalendar: false, onHold: map.hold, statusOverride: map.status,
+          trelloCardId: c.id, trelloList: c.list
+        };
+        state.jobs.push(job); byCard.set(c.id, job); added++;
+        return;
+      }
+      if(!job.trelloCardId){ job.trelloCardId = c.id; byCard.set(c.id, job); changed++; }
+      if(job.trelloList !== c.list){
+        job.trelloList = c.list; changed++;
+        if(map){
+          job.statusOverride = map.status; job.onHold = map.hold;
+          if(map.status === 'ongoing' && !job.startDate) job.startDate = trelloCreatedKey(c.id);
+        } else if(TRELLO_DONE_LISTS.includes(c.list)){
+          job.statusOverride = 'completed'; job.onHold = false;
+        }
+      }
+    });
+    const note = document.getElementById('trelloSyncNote');
+    if(note){ note.style.display = ''; note.textContent = 'Jobs synced from Trello · ' + new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}); }
+    if(added || changed){
+      saveState();
+      renderAll();
+      if(added) showToast(added + ' job' + (added === 1 ? '' : 's') + ' added from Trello');
+    }
+  } finally {
+    trelloSyncing = false;
+  }
 }
 
 function removeEmployee(id){
@@ -2846,7 +3039,14 @@ function buildJobCard(job, variant, contextDay){
     if(job.superintendentId === sup.id) opt.selected = true;
     superSelect.appendChild(opt);
   });
-  superSelect.onchange = ()=> updateJobField(job.id, 'superintendentId', superSelect.value || null);
+  const newSupOpt = document.createElement('option');
+  newSupOpt.value = '__new__';
+  newSupOpt.textContent = '+ Add new superintendent...';
+  superSelect.appendChild(newSupOpt);
+  superSelect.onchange = ()=>{
+    if(superSelect.value === '__new__'){ superSelect.value = job.superintendentId || ''; openAddPerson({jobId: job.id, role: 'super', asSuper: true}); return; }
+    updateJobField(job.id, 'superintendentId', superSelect.value || null);
+  };
   superField.appendChild(superLabel);
   superField.appendChild(superSelect);
   fields.appendChild(superField);
@@ -2937,7 +3137,14 @@ function buildJobCard(job, variant, contextDay){
       opt.textContent = label;
       empSelect.appendChild(opt);
     });
-  empSelect.onchange = ()=>{ if(empSelect.value) assign(job.id, empSelect.value); };
+  const newEmpOpt = document.createElement('option');
+  newEmpOpt.value = '__new__';
+  newEmpOpt.textContent = '+ Add new person...';
+  empSelect.appendChild(newEmpOpt);
+  empSelect.onchange = ()=>{
+    if(empSelect.value === '__new__'){ empSelect.value = ''; openAddPerson({jobId: job.id, role: 'laborer'}); return; }
+    if(empSelect.value) assign(job.id, empSelect.value);
+  };
   card.appendChild(empSelect);
 
   // ---- Vehicles section (drop zone + chips + dropdown) ----
