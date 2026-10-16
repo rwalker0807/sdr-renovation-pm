@@ -32,9 +32,8 @@ export interface Entity {
   singular: string;
   projectScoped: boolean;
   statusKey?: string;
-  /** a text field offered as a dropdown filter; values like "Roofing / siding" count under each part */
-  filterKey?: string;
-  filterLabel?: string;
+  /** text fields offered as dropdown filters; with split, "Roofing / siding" counts under each part */
+  filters?: { key: string; label: string; split?: boolean }[];
   fields: Field[];
 }
 
@@ -91,7 +90,7 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   vendors: {
-    table: 'vendors', label: 'Vendors & Subs', singular: 'Vendor', projectScoped: false, filterKey: 'trade', filterLabel: 'trades',
+    table: 'vendors', label: 'Vendors & Subs', singular: 'Vendor', projectScoped: false, filters: [{ key: 'trade', label: 'trades', split: true }, { key: 'state', label: 'states' }],
     fields: [
       { key: 'name', label: 'Name', type: 'text', required: true },
       { key: 'trade', label: 'Trade', type: 'text' },
@@ -100,6 +99,8 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'phone', label: 'Phone', type: 'text' },
       { key: 'city', label: 'City', type: 'text' },
       { key: 'state', label: 'State', type: 'text' },
+      { key: 'service_area', label: 'Service area', type: 'text' },
+      { key: 'address', label: 'Address', type: 'text', table: false },
       { key: 'coi_expires', label: 'COI expires', type: 'date' },
       { key: 'license_no', label: 'License #', type: 'text', table: false },
     ],

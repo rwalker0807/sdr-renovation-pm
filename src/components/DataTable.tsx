@@ -43,13 +43,19 @@ export function DataTable({ table, rows, onOpen, tools }:
   const cols = ent.fields.filter((f) => f.table !== false);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
-  const [facet, setFacet] = useState('');
+  const [facets, setFacets] = useState<Record<string, string>>({});
+  const filters = ent.filters ?? [];
+  const tokens = (f: { split?: boolean }, v: unknown): string[] =>
+    f.split ? filterTokens(v) : String(v ?? '').trim() ? [String(v).trim()] : [];
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
 
   const view = useMemo(() => {
     const needle = q.trim().toLowerCase();
     let out = src.filter((r) => (!status || r[ent.statusKey!] === status));
-    if (facet) out = out.filter((r) => filterTokens(r[ent.filterKey!]).some((t) => t.toLowerCase() === facet.toLowerCase()));
+    for (const f of filters) {
+      const want = facets[f.key];
+      if (want) out = out.filter((r) => tokens(f, r[f.key]).some((t) => t.toLowerCase() === want.toLowerCase()));
+    }
     if (needle) {
       out = out.filter((r) => cols.some((f) => {
         const v = f.type === 'ref' ? refLabel(f.ref!, byId(f.ref!, r[f.key])) : r[f.key];
@@ -68,17 +74,16 @@ export function DataTable({ table, rows, onOpen, tools }:
       });
     }
     return out;
-  }, [src, q, status, facet, sort, byId]);
+  }, [src, q, status, facets, sort, byId]);
 
-  const facetOpts = useMemo(() => {
-    if (!ent.filterKey) return [];
+  const facetOpts = useMemo(() => Object.fromEntries(filters.map((f) => {
     const m = new Map<string, { label: string; n: number }>();
-    src.forEach((r) => filterTokens(r[ent.filterKey!]).forEach((t) => {
+    src.forEach((r) => tokens(f, r[f.key]).forEach((t) => {
       const k = t.toLowerCase(); const e = m.get(k);
       if (e) e.n++; else m.set(k, { label: t, n: 1 });
     }));
-    return [...m.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [src, ent.filterKey]);
+    return [f.key, [...m.values()].sort((a, b) => a.label.localeCompare(b.label))];
+  })), [src, filters]);
   const statusOpts = ent.statusKey ? ent.fields.find((f) => f.key === ent.statusKey)?.options ?? [] : [];
   const hasTotals = cols.some((c) => c.total);
 
@@ -92,12 +97,12 @@ export function DataTable({ table, rows, onOpen, tools }:
             {statusOpts.map((o) => <option key={o} value={o}>{label(o)}</option>)}
           </select>
         )}
-        {ent.filterKey && (
-          <select value={facet} onChange={(e) => setFacet(e.target.value)} aria-label={`Filter by ${ent.filterLabel ?? ent.filterKey}`}>
-            <option value="">All {ent.filterLabel ?? ent.filterKey}</option>
-            {facetOpts.map((o) => <option key={o.label} value={o.label}>{o.label} ({o.n})</option>)}
+        {filters.map((f) => (
+          <select key={f.key} value={facets[f.key] ?? ''} onChange={(e) => setFacets((s) => ({ ...s, [f.key]: e.target.value }))} aria-label={`Filter by ${f.label}`}>
+            <option value="">All {f.label}</option>
+            {facetOpts[f.key].map((o) => <option key={o.label} value={o.label}>{o.label} ({o.n})</option>)}
           </select>
-        )}
+        ))}
         <span className="muted small">{view.length} of {src.length}</span>
         <span style={{ flex: 1 }} />
         {tools?.(view)}

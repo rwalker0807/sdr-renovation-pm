@@ -25,7 +25,7 @@ export function AssignVendorDialog({ projectId, onClose }: { projectId: string; 
     const n = q.trim().toLowerCase();
     return all.vendors
       .filter((v) => !trade || filterTokens(v.trade).some((t) => t.toLowerCase() === trade.toLowerCase()))
-      .filter((v) => !n || [v.name, v.trade, v.contact_name, v.email, v.city, v.state].some((x) => String(x ?? '').toLowerCase().includes(n)))
+      .filter((v) => !n || [v.name, v.trade, v.contact_name, v.email, v.city, v.state, v.service_area].some((x) => String(x ?? '').toLowerCase().includes(n)))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }, [all.vendors, q, trade]);
 
