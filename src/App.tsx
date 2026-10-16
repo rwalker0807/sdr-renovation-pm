@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from './lib/store';
 import { ENTITIES, type Row, type TableName } from './lib/schema';
 import { BudgetView, BuyoutView, Dashboard, GenericView, ProgressView } from './views/views';
 import { CrewSchedule, Home } from './views/Home';
 import { TrelloBoard } from './views/TrelloBoard';
 import { RecordDrawer } from './components/RecordDrawer';
+import { ProjectPicker } from './components/ProjectPicker';
 
 // Sidebar inside a project tab
 const NAV: { key: string; label: string; group: string }[] = [
@@ -45,10 +46,6 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
     return () => window.removeEventListener('hashchange', h);
   }, []);
 
-  const tabs = useMemo(
-    () => all.projects.filter((p) => p.status !== 'complete').sort((a, b) => String(a.code).localeCompare(String(b.code))),
-    [all.projects],
-  );
   const project = route.page === 'project' ? all.projects.find((p) => (p.code || p.id) === route.code) : undefined;
 
   // keep the store's current project in step with the URL
@@ -89,12 +86,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
         <a className="brand" href="#/"><span className="brand-mark">SDR</span><span className="brand-name">Renovation PM</span></a>
         <nav className="tabs" aria-label="Projects">
           <a href="#/" className={route.page === 'home' ? 'on' : ''}>Home</a>
-          {tabs.map((p) => (
-            <a key={p.id} href={projectHref(p)} className={project?.id === p.id ? 'on' : ''} title={p.name}>
-              <span className="tab-code">{p.code}</span> {p.name}
-            </a>
-          ))}
-          <button className="tab-add" onClick={() => setNewProject(true)} title="New project">+</button>
+          <ProjectPicker projects={all.projects} current={project} onPick={openProject} onNew={() => setNewProject(true)} />
           <span className="tabs-sep" />
           <a href="#/trello" className={route.page === 'trello' ? 'on' : ''}>Raleigh Board</a>
           <a href="#/crew" className={route.page === 'crew' ? 'on' : ''}>Crew Schedule</a>
