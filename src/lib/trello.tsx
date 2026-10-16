@@ -22,6 +22,7 @@ const COLORS: Record<string, string> = {
   pink: '#e774bb', pink_dark: '#ae4787', pink_light: '#fdd0ec', black: '#8590a2', black_dark: '#626f86', black_light: '#dcdfe4',
 };
 const LIGHT = new Set(['green_light', 'yellow', 'yellow_light', 'orange_light', 'red_light', 'purple_light', 'blue_light', 'sky_light', 'lime_light', 'pink_light', 'black_light', 'green', 'lime', 'sky']);
+export const labelHex = (c: string | null) => (c ? COLORS[c] ?? '#8590a2' : '#8590a2');
 export const labelStyle = (c: string | null) => ({ background: c ? COLORS[c] ?? '#8590a2' : '#dcdfe4', color: c && !LIGHT.has(c) ? '#fff' : '#1d2125' });
 
 interface TrelloState {

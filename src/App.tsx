@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useStore } from './lib/store';
 import { ENTITIES, jobType, type JobType, type Row, type TableName } from './lib/schema';
 import { BudgetView, BuyoutView, Dashboard, GenericView, ProgressView, VendorsView } from './views/views';
@@ -8,6 +8,7 @@ import { RecordDrawer } from './components/RecordDrawer';
 import { ProjectPicker } from './components/ProjectPicker';
 import { ProjectVendorsView } from './views/ProjectVendors';
 import { DirectoryView } from './views/Directory';
+const ClientProperties = lazy(() => import('./views/ClientProperties').then((m) => ({ default: m.ClientProperties })));
 
 // Sidebar inside a project tab; `types` limits an item to some job types (default: all)
 const NAV: { key: string; label: string; group: string; types?: JobType[] }[] = [
@@ -26,7 +27,7 @@ const NAV: { key: string; label: string; group: string; types?: JobType[] }[] = 
 ];
 
 // Routes:  #/  (home) · #/crew · #/vendors · #/p/<job code>/<view>
-type Route = { page: 'home' | 'crew' | 'vendors' | 'trello' | 'directory' } | { page: 'project'; code: string; view: string };
+type Route = { page: 'home' | 'crew' | 'vendors' | 'trello' | 'directory' | 'properties' } | { page: 'project'; code: string; view: string };
 function parseHash(): Route {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   if (parts[0] === 'p' && parts[1]) return { page: 'project', code: parts[1], view: parts[2] || 'dashboard' };
@@ -34,6 +35,7 @@ function parseHash(): Route {
   if (parts[0] === 'trello') return { page: 'trello' };
   if (parts[0] === 'vendors') return { page: 'vendors' };
   if (parts[0] === 'directory') return { page: 'directory' };
+  if (parts[0] === 'properties') return { page: 'properties' };
   return { page: 'home' };
 }
 const projectHref = (p: Row, view = 'dashboard') => `#/p/${encodeURIComponent(p.code || p.id)}/${view}`;
@@ -74,6 +76,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
   else if (route.page === 'trello') body = <TrelloBoard />;
   else if (route.page === 'vendors') body = <VendorsView />;
   else if (route.page === 'directory') body = <DirectoryView />;
+  else if (route.page === 'properties') body = <Suspense fallback={<div className="muted pad">Loading map…</div>}><ClientProperties /></Suspense>;
   else if (!project) body = <div className="panel pad">That project isn’t in the tracker. <a href="#/">Back to all projects</a></div>;
   else switch (pview) {
     case 'dashboard': body = <Dashboard go={(v) => { location.hash = projectHref(project, v); }} />; break;
@@ -95,6 +98,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
           <ProjectPicker projects={all.projects} current={project} onPick={openProject} onNew={() => setNewProject(true)} />
           <span className="tabs-sep" />
           <a href="#/trello" className={route.page === 'trello' ? 'on' : ''}>Raleigh Board</a>
+          <a href="#/properties" className={route.page === 'properties' ? 'on' : ''}>Client Properties</a>
           <a href="#/crew" className={route.page === 'crew' ? 'on' : ''}>Crew Schedule</a>
           <a href="#/vendors" className={route.page === 'vendors' ? 'on' : ''}>Vendors</a>
           <a href="#/directory" className={route.page === 'directory' ? 'on' : ''}>Directory</a>
@@ -124,7 +128,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
             </nav>
           </aside>
         )}
-        <main className={route.page === 'crew' ? 'full' : ''}>
+        <main className={route.page === 'crew' || route.page === 'properties' ? 'full' : ''}>
           {project && <button className="menu-btn" onClick={() => setNavOpen((o) => !o)}>☰ {project.code} menu</button>}
           {body}
         </main>

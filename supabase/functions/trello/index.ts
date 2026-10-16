@@ -8,6 +8,7 @@
 // Secrets (Supabase > Edge Functions > Secrets): TRELLO_KEY, TRELLO_TOKEN, TRELLO_SECRET
 // The Trello key/token never reach the browser.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
+import { PROPS_BOARD, refreshProperty, syncProperties, syncPropertyLists } from './properties.ts';
 
 const BOARD = '669fb6d4bad31f2c13bfb48b'; // Raleigh Current Jobs
 const KEY = Deno.env.get('TRELLO_KEY') ?? '';
@@ -175,6 +176,15 @@ Deno.serve(async (req) => {
       const evt = JSON.parse(body);
       const type: string = evt.action?.type ?? '';
       const d = evt.action?.data ?? {};
+      const boardId = evt.model?.id ?? d.board?.id;
+      if (boardId === PROPS_BOARD) {            // Related Properties board -> Client Properties tab
+        if (/List/.test(type) && !d.card) await syncPropertyLists(trello, admin);
+        else if (d.card?.id) {
+          if (type === 'deleteCard') await admin.from('client_properties').update({ closed: true }).eq('id', d.card.id);
+          else await refreshProperty(trello, admin, d.card.id);
+        }
+        return json({ ok: true });
+      }
       if (/CustomField$/.test(type)) await customFieldDefs(true); // field added/renamed on the board
       else if (/List/.test(type) && !d.card) await syncLists();
       else if (/Label/.test(type) && !d.card) await syncLabels();
@@ -218,6 +228,15 @@ Deno.serve(async (req) => {
         await cardOnBoard(p.card_id);
         await trello('PUT', `/cards/${p.card_id}`, { due: p.due ?? '', dueComplete: !!p.due_complete });
         return json({ ok: true, card: await refreshCard(p.card_id) });
+      }
+
+      case 'sync_properties': {
+        // make sure Trello notifies us about this board, then pull every card
+        const hooks = await trello('GET', `/tokens/${TOKEN}/webhooks`);
+        if (!hooks.some((h: any) => h.idModel === PROPS_BOARD && h.callbackURL === CALLBACK)) {
+          await trello('POST', '/webhooks', { idModel: PROPS_BOARD, callbackURL: CALLBACK, description: 'SDR tracker - Client Properties' });
+        }
+        return json({ ok: true, ...(await syncProperties(trello, admin)) });
       }
 
       case 'setup_webhook': {
