@@ -41,6 +41,12 @@ async function photosOnDay(claimId: string, day: string) {
     if (!r.ok) break;
     const j = await r.json();
     const list: any[] = j?.list ?? [];
+    if (page < 3 || page % 5 === 0 || !j?.cursor?.after) {
+      const ts = list.map((m) => m.primary_client_created ?? m.primary_server_created).filter(Boolean);
+      const types: Record<string, number> = {};
+      list.forEach((m) => { const t = `${m.source?.type ?? '?'}|${String(m.content_type ?? '?').split('/')[0]}`; types[t] = (types[t] ?? 0) + 1; });
+      console.log(JSON.stringify({ diag: 'media_page', claimId, day, page, n: list.length, first: ts[0], last: ts[ts.length - 1], types, keys: page === 0 ? Object.keys(list[0] ?? {}) : undefined, more: !!j?.cursor?.after }));
+    }
     let allOlder = list.length > 0;
     for (const m of list) {
       const when = m.primary_client_created ?? m.primary_server_created;
@@ -60,6 +66,7 @@ async function photosOnDay(claimId: string, day: string) {
     const last = list[list.length - 1]?.primary_client_created ?? list[list.length - 1]?.primary_server_created;
     if (allOlder && first && last && first >= last) break;
   }
+  console.log(JSON.stringify({ diag: 'media_done', claimId, day, matched: out.length }));
   out.sort((a, b) => String(b.taken).localeCompare(String(a.taken)));
   return { photos: out.slice(0, 24), total: out.length };
 }
