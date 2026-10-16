@@ -87,4 +87,4 @@ export function recordName(table: string | null | undefined, r: Row | undefined,
   }
 }
 
-export const GENERAL_FOLDERS = ['Contract', 'Proposal / estimate', 'Xactimate / EMS', 'Drawings & specs', 'Permits & inspections', 'Insurance / COI', 'Photos', 'Closeout', 'Other'];
+export const GENERAL_FOLDERS = ['Contract', 'Client invoice', 'Proposal / estimate', 'Xactimate / EMS', 'Drawings & specs', 'Permits & inspections', 'Insurance / COI', 'Photos', 'Closeout', 'Other'];
