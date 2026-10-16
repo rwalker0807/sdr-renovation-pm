@@ -175,16 +175,21 @@ function PropertyMap({ props, selected, onSelect }: { props: Prop[]; selected: s
   useEffect(() => {
     if (!el.current || map.current) return;
     const m = L.map(el.current, { zoomControl: true, worldCopyJump: true }).setView([37.5, -84], 5);
-    // Free tile sources that need no API key. Street map is darkened with a CSS filter in dark mode.
-    const street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, className: dark() ? 'tiles-dark' : '',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    });
-    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19, attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics',
-    });
-    street.addTo(m);
-    L.control.layers({ Map: street, Satellite: satellite }, undefined, { position: 'topright' }).addTo(m);
+    // Esri's public basemaps: no API key needed. Dark gray (with place labels) in dark mode, street map in light mode.
+    const esri = (svc: string) => `https://server.arcgisonline.com/ArcGIS/rest/services/${svc}/MapServer/tile/{z}/{y}/{x}`;
+    const attribution = 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, USGS, NGA, EPA, USDA, NPS';
+    const darkMap = L.layerGroup([
+      L.tileLayer(esri('Canvas/World_Dark_Gray_Base'), { maxZoom: 16, attribution }),
+      L.tileLayer(esri('Canvas/World_Dark_Gray_Reference'), { maxZoom: 16 }),
+    ]);
+    const street = L.tileLayer(esri('World_Street_Map'), { maxZoom: 19, attribution });
+    const satellite = L.layerGroup([
+      L.tileLayer(esri('World_Imagery'), { maxZoom: 19, attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics' }),
+      L.tileLayer(esri('Reference/World_Boundaries_and_Places'), { maxZoom: 19 }),
+    ]);
+    (dark() ? darkMap : street).addTo(m);
+    L.control.layers(dark() ? { Map: darkMap, Street: street, Satellite: satellite } : { Map: street, Satellite: satellite },
+      undefined, { position: 'topright' }).addTo(m);
     group.current = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 45 });
     m.addLayer(group.current);
     map.current = m;
