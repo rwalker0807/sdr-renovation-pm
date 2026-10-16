@@ -4,7 +4,7 @@
 export type TableName =
   | 'projects' | 'vendors' | 'budget_lines' | 'buyout_packages' | 'commitments'
   | 'change_orders' | 'material_buys' | 'invoices' | 'progress' | 'scope_gaps'
-  | 'specs' | 'scopes' | 'project_vendors' | 'sdr_people';
+  | 'specs' | 'scopes' | 'project_vendors' | 'sdr_people' | 'attachments';
 
 export type Row = { id: string; [k: string]: any };
 
@@ -34,6 +34,8 @@ export interface Entity {
   statusKey?: string;
   /** text fields offered as dropdown filters; with split, "Roofing / siding" counts under each part */
   filters?: { key: string; label: string; split?: boolean }[];
+  /** records can carry file attachments (upload spot in the form, 📎 count in the table, listed on the job's Files tab) */
+  attach?: boolean;
   fields: Field[];
 }
 
@@ -116,7 +118,7 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   buyout_packages: {
-    table: 'buyout_packages', label: 'Buyout', singular: 'Buyout package', projectScoped: true, statusKey: 'status',
+    table: 'buyout_packages', attach: true, label: 'Buyout', singular: 'Buyout package', projectScoped: true, statusKey: 'status',
     fields: [
       { key: 'package', label: 'Package', type: 'text', required: true },
       { key: 'budget_line_id', label: 'Cost code', type: 'ref', ref: 'budget_lines' },
@@ -133,7 +135,7 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   commitments: {
-    table: 'commitments', label: 'Subcontracts & POs', singular: 'Commitment', projectScoped: true, statusKey: 'status',
+    table: 'commitments', attach: true, label: 'Subcontracts & POs', singular: 'Commitment', projectScoped: true, statusKey: 'status',
     fields: [
       { key: 'number', label: 'No.', type: 'text' },
       { key: 'kind', label: 'Type', type: 'select', options: ['subcontract', 'po'] },
@@ -146,11 +148,11 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'status', label: 'Status', type: 'select', options: STATUS.commitment },
       { key: 'executed_date', label: 'Executed', type: 'date' },
       { key: 'coi_received', label: 'COI', type: 'bool' },
-      { key: 'scope_doc_url', label: 'Contract doc', type: 'url', table: false },
+      { key: 'scope_doc_url', label: 'Contract link (optional)', type: 'url', table: false },
     ],
   },
   change_orders: {
-    table: 'change_orders', label: 'Change Orders', singular: 'Change order', projectScoped: true, statusKey: 'status',
+    table: 'change_orders', attach: true, label: 'Change Orders', singular: 'Change order', projectScoped: true, statusKey: 'status',
     fields: [
       { key: 'co_number', label: 'CO #', type: 'text' },
       { key: 'kind', label: 'Owner / Sub', type: 'select', options: ['owner', 'sub'], required: true },
@@ -163,7 +165,7 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   material_buys: {
-    table: 'material_buys', label: 'Material Buys', singular: 'Material buy', projectScoped: true, statusKey: 'status',
+    table: 'material_buys', attach: true, label: 'Material Buys', singular: 'Material buy', projectScoped: true, statusKey: 'status',
     fields: [
       { key: 'item', label: 'Item', type: 'text', required: true },
       { key: 'vendor_id', label: 'Supplier', type: 'ref', ref: 'vendors' },
@@ -182,7 +184,7 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   invoices: {
-    table: 'invoices', label: 'Invoices', singular: 'Invoice', projectScoped: true, statusKey: 'status',
+    table: 'invoices', attach: true, label: 'Invoices', singular: 'Invoice', projectScoped: true, statusKey: 'status',
     fields: [
       { key: 'invoice_number', label: 'Invoice #', type: 'text' },
       { key: 'vendor_id', label: 'Vendor', type: 'ref', ref: 'vendors' },
@@ -194,11 +196,11 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'retainage_held', label: 'Retainage', type: 'money', total: true },
       { key: 'status', label: 'Status', type: 'select', options: STATUS.invoice },
       { key: 'paid_date', label: 'Paid', type: 'date' },
-      { key: 'file_url', label: 'File', type: 'url', table: false },
+      { key: 'file_url', label: 'Link to file elsewhere (optional)', type: 'url', table: false },
     ],
   },
   progress: {
-    table: 'progress', label: 'Onsite Progress', singular: 'Progress item', projectScoped: true, statusKey: 'status',
+    table: 'progress', attach: true, label: 'Onsite Progress', singular: 'Progress item', projectScoped: true, statusKey: 'status',
     fields: [
       { key: 'building', label: 'Building', type: 'text', required: true },
       { key: 'unit', label: 'Unit', type: 'text' },
@@ -210,7 +212,7 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   scope_gaps: {
-    table: 'scope_gaps', label: 'Scope Gaps', singular: 'Scope gap', projectScoped: true, statusKey: 'status',
+    table: 'scope_gaps', attach: true, label: 'Scope Gaps', singular: 'Scope gap', projectScoped: true, statusKey: 'status',
     fields: [
       { key: 'title', label: 'Gap', type: 'text', required: true },
       { key: 'trade_a', label: 'Between', type: 'text' },
@@ -225,7 +227,7 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   specs: {
-    table: 'specs', label: 'Specs', singular: 'Spec section', projectScoped: true, statusKey: 'status',
+    table: 'specs', attach: true, label: 'Specs', singular: 'Spec section', projectScoped: true, statusKey: 'status',
     fields: [
       { key: 'section', label: 'Section', type: 'text', required: true },
       { key: 'title', label: 'Title', type: 'text', required: true },
@@ -233,11 +235,11 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'manufacturer', label: 'Manufacturer', type: 'text' },
       { key: 'revision', label: 'Rev', type: 'text' },
       { key: 'status', label: 'Status', type: 'select', options: STATUS.spec },
-      { key: 'doc_url', label: 'Document', type: 'url' },
+      { key: 'doc_url', label: 'Doc link', type: 'url' },
     ],
   },
   scopes: {
-    table: 'scopes', label: 'Scopes of Work', singular: 'Scope', projectScoped: true,
+    table: 'scopes', attach: true, label: 'Scopes of Work', singular: 'Scope', projectScoped: true,
     fields: [
       { key: 'trade', label: 'Trade', type: 'text', required: true },
       { key: 'commitment_id', label: 'Subcontract', type: 'ref', ref: 'commitments' },
@@ -245,7 +247,7 @@ export const ENTITIES: Record<TableName, Entity> = {
       { key: 'inclusions', label: 'Inclusions', type: 'textarea' },
       { key: 'exclusions', label: 'Exclusions', type: 'textarea' },
       { key: 'clarifications', label: 'Clarifications', type: 'textarea', table: false },
-      { key: 'doc_url', label: 'Document', type: 'url', table: false },
+      { key: 'doc_url', label: 'Document link (optional)', type: 'url', table: false },
     ],
   },
   sdr_people: {
@@ -265,12 +267,24 @@ export const ENTITIES: Record<TableName, Entity> = {
     ],
   },
   project_vendors: {
-    table: 'project_vendors', label: 'Vendors on this job', singular: 'Vendor assignment', projectScoped: true,
+    table: 'project_vendors', attach: true, label: 'Vendors on this job', singular: 'Vendor assignment', projectScoped: true,
     fields: [
       { key: 'vendor_id', label: 'Vendor', type: 'ref', ref: 'vendors', required: true },
       { key: 'role', label: 'Role / scope on this job', type: 'text' },
       { key: 'amount', label: 'Amount', type: 'money', total: true },
       { key: 'notes', label: 'Notes', type: 'textarea', table: false },
+    ],
+  },
+  attachments: {
+    table: 'attachments', label: 'Files', singular: 'File', projectScoped: true,
+    fields: [
+      { key: 'filename', label: 'File', type: 'text', required: true },
+      { key: 'record_table', label: 'Attached to', type: 'text' },
+      { key: 'folder', label: 'Folder', type: 'text' },
+      { key: 'size_bytes', label: 'Size (bytes)', type: 'number' },
+      { key: 'uploaded_by', label: 'Uploaded by', type: 'text' },
+      { key: 'created_at', label: 'Uploaded', type: 'date' },
+      { key: 'note', label: 'Note', type: 'textarea', table: false },
     ],
   },
 };

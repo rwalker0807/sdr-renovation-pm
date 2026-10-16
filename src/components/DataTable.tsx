@@ -38,7 +38,12 @@ export function filterTokens(v: unknown): string[] {
 export function DataTable({ table, rows, onOpen, tools }:
   { table: TableName; rows?: Row[]; onOpen: (r: Row) => void; tools?: (shown: Row[]) => ReactNode }) {
   const ent = ENTITIES[table];
-  const { data, recent, byId, projectId } = useStore();
+  const { data, all, recent, byId, projectId } = useStore();
+  const clips = useMemo(() => {
+    const m = new Map<string, number>();
+    if (ent.attach) all.attachments.forEach((a) => { if (a.record_table === table && a.record_id) m.set(a.record_id, (m.get(a.record_id) ?? 0) + 1); });
+    return m;
+  }, [all.attachments, table, ent.attach]);
   const cell = useCell();
   const src = rows ?? data[table];
   const cols = ent.fields.filter((f) => f.table !== false);
@@ -121,15 +126,17 @@ export function DataTable({ table, rows, onOpen, tools }:
                   {c.label}{sort?.key === c.key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
                 </th>
               ))}
+              {ent.attach && <th className="clip-col" title="Attached files">📎</th>}
             </tr>
           </thead>
           <tbody>
             {view.map((r) => (
               <tr key={r.id} className={recent.has(r.id) ? 'flash' : ''} onClick={() => onOpen(r)}>
                 {cols.map((c) => <td key={c.key} className={['money', 'number', 'percent'].includes(c.type) ? 'r' : ''}>{cell(c, r)}</td>)}
+                {ent.attach && <td className="clip-col">{clips.get(r.id) ? <span title={`${clips.get(r.id)} attached file(s)`}>📎{clips.get(r.id)}</span> : ''}</td>}
               </tr>
             ))}
-            {!view.length && <tr><td colSpan={cols.length} className="empty">Nothing here yet.</td></tr>}
+            {!view.length && <tr><td colSpan={cols.length + (ent.attach ? 1 : 0)} className="empty">Nothing here yet.</td></tr>}
           </tbody>
           {hasTotals && (
             <tfoot>
@@ -139,6 +146,7 @@ export function DataTable({ table, rows, onOpen, tools }:
                     {c.total ? money(view.reduce((a, r) => a + (Number(c.computed ? c.computed(r) : r[c.key]) || 0), 0)) : i === 0 ? 'Total' : ''}
                   </td>
                 ))}
+                {ent.attach && <td />}
               </tr>
             </tfoot>
           )}

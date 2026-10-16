@@ -24,7 +24,7 @@ interface Store {
   live: boolean;
   lastEvent: { at: number; label: string } | null;
   recent: Set<string>;                // ids changed in the last few seconds (for row flash)
-  save: (t: TableName, row: Partial<Row>) => Promise<void>;
+  save: (t: TableName, row: Partial<Row>) => Promise<Row>;
   remove: (t: TableName, id: string) => Promise<void>;
 }
 
@@ -100,12 +100,19 @@ export function StoreProvider({ source, children }: { source: DataSource; childr
   const save = useCallback(async (t: TableName, row: Partial<Row>) => {
     const payload = { ...row };
     if (ENTITIES[t].projectScoped && !payload.project_id) payload.project_id = pidRef.current;
-    if (payload.id) await source.update(t, payload.id, payload);
-    else await source.insert(t, payload);
-    // UI updates arrive through the realtime subscription
+    const saved = payload.id ? await source.update(t, payload.id, payload) : await source.insert(t, payload);
+    // apply it now (the realtime echo that follows is idempotent); the row is returned for follow-up work (e.g. attaching files)
+    if (saved?.id) setAll((prev) => {
+      const rows = prev[t]; const i = rows.findIndex((r) => r.id === saved.id);
+      return { ...prev, [t]: i >= 0 ? rows.map((r, j) => (j === i ? saved : r)) : [...rows, saved] };
+    });
+    return saved;
   }, [source]);
 
-  const remove = useCallback((t: TableName, id: string) => source.remove(t, id), [source]);
+  const remove = useCallback(async (t: TableName, id: string) => {
+    await source.remove(t, id);
+    setAll((prev) => ({ ...prev, [t]: prev[t].filter((r) => r.id !== id) }));
+  }, [source]);
 
   const value: Store = { source, projectId, setProjectId, all, data, byId, loading, error, live, lastEvent, recent, save, remove };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -8,6 +8,7 @@ import { RecordDrawer } from './components/RecordDrawer';
 import { ProjectPicker } from './components/ProjectPicker';
 import { ProjectVendorsView } from './views/ProjectVendors';
 import { DirectoryView } from './views/Directory';
+import { FilesView } from './views/Files';
 const ClientProperties = lazy(() => import('./views/ClientProperties').then((m) => ({ default: m.ClientProperties })));
 
 // Sidebar inside a project tab; `types` limits an item to some job types (default: all)
@@ -22,6 +23,7 @@ const NAV: { key: string; label: string; group: string; types?: JobType[] }[] = 
   { key: 'material_buys', label: 'Material Buys', group: 'Procurement' },
   { key: 'progress', label: 'Onsite Progress', group: 'Field', types: ['renovation', 'gc'] },
   { key: 'scope_gaps', label: 'Scope Gaps', group: 'Field' },
+  { key: 'files', label: 'Files', group: 'Documents' },
   { key: 'scopes', label: 'Scopes of Work', group: 'Documents', types: ['renovation', 'gc'] },
   { key: 'specs', label: 'Specs', group: 'Documents', types: ['renovation'] },
 ];
@@ -84,6 +86,7 @@ export default function App({ onSignOut, onResetDemo }: { onSignOut?: () => void
     case 'buyout': body = <BuyoutView />; break;
     case 'progress': body = <ProgressView />; break;
     case 'project_vendors': body = <ProjectVendorsView />; break;
+    case 'files': body = <FilesView />; break;
     default: body = pview in ENTITIES ? <GenericView table={pview as TableName} /> : <Dashboard go={(v) => { location.hash = projectHref(project, v); }} />;
   }
 
